@@ -1,0 +1,400 @@
+{
+	"info": {
+		"_postman_id": "cms-api-collection",
+		"name": "CMS API Collection",
+		"description": "Card Management System API - Spring Boot REST API with Card and Request Management\n\n**Features:**\n- No Authentication Required\n- Loosely Coupled Architecture (Service Layer + Repository Interfaces)\n- No Transaction Management\n- Comprehensive Logging Enabled\n- PostgreSQL Database Backend\n\n**Base URL:** http://localhost:8080\n\n**Available Endpoints:**\n- Card Management (11 endpoints)\n- Card Request Management (12 endpoints)\n\n**Status Codes:**\n- Card Status: IACT (Inactive), CACT (Active), DACT (Deactivated)\n- Request Status: PEND (Pending), APPR (Approved), RJCT (Rejected)\n- Request Types: ACTI (Activation), CDCL (Card Close)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "cms-api-v1"
+	},
+	"auth": {
+		"type": "noauth"
+	},
+	"item": [
+		{
+			"name": "Card Management",
+			"item": [
+				{
+					"name": "Get All Cards",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/cards",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "cards"]
+						},
+						"description": "Retrieve all cards in the system.\n\n**Response:** Returns a list of all cards ordered by last update time (most recent first).\n\n**No authentication required.**"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Card by Card Number",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/cards/4532015112830366",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "cards", "4532015112830366"]
+						},
+						"description": "Retrieve a specific card by its card number. No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Cards by Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/cards/status/CACT",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "cards", "status", "CACT"]
+						},
+						"description": "Get cards by status (IACT=Inactive, CACT=Active, DACT=Deactivated). No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Expired Cards",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/cards/expired",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "cards", "expired"]
+						},
+						"description": "Retrieve all expired cards. No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Expiring Cards",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/cards/expiring?days=30",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "cards", "expiring"],
+							"query": [
+								{
+									"key": "days",
+									"value": "30",
+									"description": "Number of days to check for expiration"
+								}
+							]
+						},
+						"description": "Get cards expiring within specified number of days. No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Card Count by Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/cards/count?status=CACT",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "cards", "count"],
+							"query": [
+								{
+									"key": "status",
+									"value": "CACT",
+									"description": "Card status code (optional)"
+								}
+							]
+						},
+						"description": "Get count of cards, optionally filtered by status. No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Card",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cardNumber\": \"4532015112830366\",\n  \"expiryDate\": \"2027-12-31\",\n  \"cardStatus\": \"IACT\",\n  \"creditLimit\": 100000.00,\n  \"cashLimit\": 50000.00,\n  \"availableCreditLimit\": 100000.00,\n  \"availableCashLimit\": 50000.00\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/cards",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "cards"]
+						},
+						"description": "Create a new card in the system.\n\n**Required Fields:**\n- cardNumber: 16-digit card number\n- expiryDate: Card expiry date (YYYY-MM-DD)\n- cardStatus: Card status code (IACT, CACT, or DACT)\n- creditLimit: Credit limit amount\n- cashLimit: Cash limit amount\n- availableCreditLimit: Available credit limit\n- availableCashLimit: Available cash limit\n\n**No authentication required.**"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Card",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cardNumber\": \"4532015112830366\",\n  \"expiryDate\": \"2028-12-31\",\n  \"cardStatus\": \"CACT\",\n  \"creditLimit\": 150000.00,\n  \"cashLimit\": 75000.00,\n  \"availableCreditLimit\": 150000.00,\n  \"availableCashLimit\": 75000.00\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/cards/4532015112830366",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "cards", "4532015112830366"]
+						},
+						"description": "Update an existing card. No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Card Status",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/cards/4532015112830366/status?status=CACT",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "cards", "4532015112830366", "status"],
+							"query": [
+								{
+									"key": "status",
+									"value": "CACT",
+									"description": "New status (IACT, CACT, or DACT)"
+								}
+							]
+						},
+						"description": "Update only the status of a card. No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Card",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/cards/4532015112830366",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "cards", "4532015112830366"]
+						},
+						"description": "Delete a card by card number. No authentication required."
+					},
+					"response": []
+				}
+			],
+			"description": "Card Management API - CRUD operations for cards.\n\n**Operations:**\n- View all cards or filter by status\n- Get card details by card number\n- Find expired or expiring cards\n- Create, update, and delete cards\n- Update card status\n- Get card count by status\n\n**Card Status Codes:**\n- IACT: Inactive\n- CACT: Active\n- DACT: Deactivated"
+		},
+		{
+			"name": "Card Request Management",
+			"item": [
+				{
+					"name": "Get All Requests",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "requests"]
+						},
+						"description": "Retrieve all card requests in the system.\n\n**Response:** Returns a list of all card requests ordered by creation time (most recent first).\n\n**No authentication required.**"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Request by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "requests", "1"]
+						},
+						"description": "Retrieve a specific request by ID. No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Requests by Card Number",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/card/4532015112830366",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "requests", "card", "4532015112830366"]
+						},
+						"description": "Get all requests for a specific card. No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Requests by Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/status/PEND",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "requests", "status", "PEND"]
+						},
+						"description": "Get requests by status (PEND=Pending, APPR=Approved, RJCT=Rejected). No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Requests by Type",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/type/ACTI",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "requests", "type", "ACTI"]
+						},
+						"description": "Get requests by type (ACTI=Activation, CDCL=Card Close). No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Pending Requests",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/pending",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "requests", "pending"]
+						},
+						"description": "Retrieve all pending requests. No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Request Count by Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/count?status=PEND",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "requests", "count"],
+							"query": [
+								{
+									"key": "status",
+									"value": "PEND",
+									"description": "Request status code (optional)"
+								}
+							]
+						},
+						"description": "Get count of requests, optionally filtered by status. No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Request",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cardNumber\": \"4532015112830366\",\n  \"requestReasonCode\": \"ACTI\",\n  \"remark\": \"Customer requested card activation\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "requests"]
+						},
+						"description": "Create a new card request.\n\n**Required Fields:**\n- cardNumber: Card number (must exist in system)\n- requestReasonCode: Request type (ACTI or CDCL)\n- remark: Optional remark or notes\n\n**Request Types:**\n- ACTI: Card Activation\n- CDCL: Card Close\n\n**Note:** Request status is automatically set to PEND (Pending).\n\n**No authentication required.**"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Request",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cardNumber\": \"4532015112830366\",\n  \"requestReasonCode\": \"ACTI\",\n  \"remark\": \"Updated remark for activation request\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "requests", "1"]
+						},
+						"description": "Update a pending request. No authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Process Request (Approve/Reject)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"requestStatusCode\": \"APPR\",\n  \"remark\": \"Request approved by admin\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/1/process",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "requests", "1", "process"]
+						},
+						"description": "Approve or reject a pending card request.\n\n**Required Fields:**\n- requestStatusCode: New status (APPR or RJCT)\n- remark: Optional approval/rejection notes\n\n**Constraints:**\n- Only PENDING requests can be processed\n- Cannot modify already approved/rejected requests\n\n**Status Codes:**\n- APPR: Approved\n- RJCT: Rejected\n\n**No authentication required.**"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Request",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "requests", "1"]
+						},
+						"description": "Delete a request (pending/rejected only). No authentication required."
+					},
+					"response": []
+				}
+			],
+			"description": "Card Request Management API - Operations for card activation and closure requests.\n\n**Operations:**\n- View all requests or filter by status/type/card\n- Get request details by ID\n- Create new card requests\n- Update pending requests\n- Approve or reject requests\n- Delete requests (pending/rejected only)\n- Get request count by status\n\n**Request Status Codes:**\n- PEND: Pending\n- APPR: Approved\n- RJCT: Rejected\n\n**Request Type Codes:**\n- ACTI: Card Activation\n- CDCL: Card Close"
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		}
+	]
+}
