@@ -75,4 +75,104 @@ public class CardMaskingUtil {
     public static boolean isMasked(String cardNumber) {
         return cardNumber != null && cardNumber.indexOf(MASK_CHAR) >= 0;
     }
+
+    /**
+     * Generates a unique masked card ID from a card number.
+     * Format: CRD-M-XXXXXXXX where XXXXXXXX is a hash of the card number.
+     * This provides a stable, unique identifier without exposing the actual card number.
+     *
+     * @param cardNumber the card number to generate an ID from
+     * @return the masked card ID (e.g., CRD-M-943E49CC)
+     */
+    public static String generateMaskedCardId(String cardNumber) {
+        if (cardNumber == null || cardNumber.isEmpty()) {
+            return null;
+        }
+
+        // Generate a stable hash from the card number
+        int hash = cardNumber.hashCode();
+        // Convert to hex and take first 8 characters, uppercase
+        String hexHash = Integer.toHexString(Math.abs(hash)).toUpperCase();
+        
+        // Pad with zeros if necessary to ensure 8 characters
+        while (hexHash.length() < 8) {
+            hexHash = "0" + hexHash;
+        }
+        
+        // Take first 8 characters
+        hexHash = hexHash.substring(0, Math.min(8, hexHash.length()));
+        
+        return "CRD-M-" + hexHash;
+    }
+
+    /**
+     * Extracts the visible first part from a masked card number.
+     * Example: "123456******3456" returns "123456"
+     *
+     * @param maskedCardNumber the masked card number
+     * @return the first visible part, or null if cannot extract
+     */
+    public static String extractFirstPart(String maskedCardNumber) {
+        if (maskedCardNumber == null || maskedCardNumber.isEmpty()) {
+            return null;
+        }
+        
+        String clean = maskedCardNumber.replaceAll("[\\s-]", "");
+        int firstAsterisk = clean.indexOf(MASK_CHAR);
+        
+        if (firstAsterisk <= 0) {
+            return null;
+        }
+        
+        return clean.substring(0, firstAsterisk);
+    }
+
+    /**
+     * Extracts the visible last part from a masked card number.
+     * Example: "123456******3456" returns "3456"
+     *
+     * @param maskedCardNumber the masked card number
+     * @return the last visible part, or null if cannot extract
+     */
+    public static String extractLastPart(String maskedCardNumber) {
+        if (maskedCardNumber == null || maskedCardNumber.isEmpty()) {
+            return null;
+        }
+        
+        String clean = maskedCardNumber.replaceAll("[\\s-]", "");
+        int lastAsterisk = clean.lastIndexOf(MASK_CHAR);
+        
+        if (lastAsterisk < 0 || lastAsterisk >= clean.length() - 1) {
+            return null;
+        }
+        
+        return clean.substring(lastAsterisk + 1);
+    }
+
+    /**
+     * Checks if a given unmasked card number matches a masked card number pattern.
+     * Example: "1234567890123456" matches "123456******3456"
+     *
+     * @param unmaskedCardNumber the full card number
+     * @param maskedCardNumber the masked card number to match against
+     * @return true if they match
+     */
+    public static boolean matchesMaskedPattern(String unmaskedCardNumber, String maskedCardNumber) {
+        if (unmaskedCardNumber == null || maskedCardNumber == null) {
+            return false;
+        }
+        
+        String firstPart = extractFirstPart(maskedCardNumber);
+        String lastPart = extractLastPart(maskedCardNumber);
+        
+        if (firstPart == null || lastPart == null) {
+            return false;
+        }
+        
+        String cleanUnmasked = unmaskedCardNumber.replaceAll("[\\s-]", "");
+        
+        return cleanUnmasked.startsWith(firstPart) && 
+               cleanUnmasked.endsWith(lastPart) &&
+               cleanUnmasked.length() >= firstPart.length() + lastPart.length();
+    }
 }

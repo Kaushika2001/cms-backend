@@ -3,6 +3,7 @@ package com.epic.cms.service.impl;
 import com.epic.cms.dto.CardDTO;
 import com.epic.cms.dto.CardResponseDTO;
 import com.epic.cms.dto.CreateCardDTO;
+import com.epic.cms.dto.MaskedCardIdDTO;
 import com.epic.cms.exception.DuplicateResourceException;
 import com.epic.cms.exception.ResourceNotFoundException;
 import com.epic.cms.model.Card;
@@ -198,6 +199,49 @@ public class CardServiceImpl implements CardService {
         return cardRepository.countByStatus(cardStatus);
     }
 
+    @Override
+    public CardResponseDTO getMaskedCardIdForCardNumber(String cardNumber) {
+        log.info("Getting maskedCardId for card number");
+        
+        Card card;
+        
+        // Check if the card number is masked (contains asterisks)
+        if (CardMaskingUtil.isMasked(cardNumber)) {
+            log.info("Card number is masked, performing pattern lookup");
+            card = cardRepository.findByMaskedCardNumber(cardNumber)
+                    .orElseThrow(() -> new ResourceNotFoundException("Card", "maskedCardNumber", cardNumber));
+        } else {
+            log.info("Card number is unmasked, performing direct lookup");
+            card = cardRepository.findByCardNumber(cardNumber)
+                    .orElseThrow(() -> new ResourceNotFoundException("Card", "cardNumber", cardNumber));
+        }
+        
+        return convertToResponseDTO(card);
+    }
+
+    @Override
+    public MaskedCardIdDTO getMaskedCardIdOnly(String cardNumber) {
+        log.info("Getting maskedCardId only for card number");
+        
+        Card card;
+        
+        // Check if the card number is masked (contains asterisks)
+        if (CardMaskingUtil.isMasked(cardNumber)) {
+            log.info("Card number is masked, performing pattern lookup");
+            card = cardRepository.findByMaskedCardNumber(cardNumber)
+                    .orElseThrow(() -> new ResourceNotFoundException("Card", "maskedCardNumber", cardNumber));
+        } else {
+            log.info("Card number is unmasked, performing direct lookup");
+            card = cardRepository.findByCardNumber(cardNumber)
+                    .orElseThrow(() -> new ResourceNotFoundException("Card", "cardNumber", cardNumber));
+        }
+        
+        return MaskedCardIdDTO.builder()
+                .maskedCardId(CardMaskingUtil.generateMaskedCardId(card.getCardNumber()))
+                .cardNumber(CardMaskingUtil.mask(card.getCardNumber()))
+                .build();
+    }
+
     private CardDTO convertToDTO(Card card) {
         CardDTO dto = CardDTO.builder()
                 .cardNumber(card.getCardNumber())
@@ -219,6 +263,7 @@ public class CardServiceImpl implements CardService {
 
     private CardResponseDTO convertToResponseDTO(Card card) {
         CardResponseDTO dto = CardResponseDTO.builder()
+                .maskedCardId(CardMaskingUtil.generateMaskedCardId(card.getCardNumber()))
                 .cardNumber(CardMaskingUtil.mask(card.getCardNumber()))
                 .expiryDate(card.getExpiryDate())
                 .cardStatus(card.getCardStatus())

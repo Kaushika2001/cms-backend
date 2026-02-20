@@ -26,6 +26,22 @@ public interface ICardRepository {
     Optional<Card> findByCardNumber(String cardNumber);
     
     /**
+     * Find a card by its masked card ID.
+     * The masked card ID is generated from the card number using a hash.
+     * @param maskedCardId The masked card ID to search for (e.g., CRD-M-943E49CC)
+     * @return Optional containing the card if found
+     */
+    Optional<Card> findByMaskedCardId(String maskedCardId);
+    
+    /**
+     * Find a card by its masked card number pattern.
+     * Matches cards where the first 6 and last 4 digits match.
+     * @param maskedCardNumber The masked card number (e.g., 589925******0233)
+     * @return Optional containing the card if found (returns first match if multiple)
+     */
+    Optional<Card> findByMaskedCardNumber(String maskedCardNumber);
+    
+    /**
      * Find all cards with a specific status
      * @param cardStatus The status to filter by
      * @return List of cards with the specified status

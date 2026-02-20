@@ -1,6 +1,7 @@
 package com.epic.cms.repository;
 
 import com.epic.cms.model.Card;
+import com.epic.cms.util.CardMaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -49,6 +50,76 @@ public class CardRepository implements ICardRepository {
         String sql = "SELECT * FROM Card WHERE CardNumber = ?";
         List<Card> results = jdbcTemplate.query(sql, cardRowMapper, cardNumber);
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    @Override
+    public Optional<Card> findByMaskedCardId(String maskedCardId) {
+        // Since maskedCardId is generated from cardNumber, we need to find the matching card
+        // by checking all cards and comparing their generated maskedCardId
+        log.debug("Looking up card by maskedCardId: {}", maskedCardId);
+        
+        String sql = "SELECT * FROM Card";
+        List<Card> allCards = jdbcTemplate.query(sql, cardRowMapper);
+        
+        // Find the card whose cardNumber generates the matching maskedCardId
+        return allCards.stream()
+                .filter(card -> maskedCardId.equals(CardMaskingUtil.generateMaskedCardId(card.getCardNumber())))
+                .findFirst();
+    }
+
+    @Override
+    public Optional<Card> findByMaskedCardNumber(String maskedCardNumber) {
+        log.info("Looking up card by masked card number: {}", maskedCardNumber);
+        
+        if (maskedCardNumber == null || maskedCardNumber.isEmpty()) {
+            log.warn("Masked card number is null or empty");
+            return Optional.empty();
+        }
+        
+        // Remove spaces and dashes
+        String cleanMasked = maskedCardNumber.replaceAll("[\\s-]", "");
+        
+        // Check if it contains asterisks (is actually masked)
+        if (!cleanMasked.contains("*")) {
+            log.info("Card number is not masked, performing direct lookup");
+            return findByCardNumber(cleanMasked);
+        }
+        
+        // Extract the visible parts using utility methods
+        String firstPart = CardMaskingUtil.extractFirstPart(maskedCardNumber);
+        String lastPart = CardMaskingUtil.extractLastPart(maskedCardNumber);
+        
+        if (firstPart == null || lastPart == null) {
+            log.error("Could not extract first/last parts from masked card number: {}. FirstPart: {}, LastPart: {}", 
+                     maskedCardNumber, firstPart, lastPart);
+            return Optional.empty();
+        }
+        
+        log.info("Extracted parts - First: {}, Last: {}", firstPart, lastPart);
+        
+        // Get all cards and filter using the utility method
+        String sql = "SELECT * FROM Card";
+        List<Card> allCards = jdbcTemplate.query(sql, cardRowMapper);
+        
+        log.info("Total cards in database: {}", allCards.size());
+        
+        // Filter cards that match the masked pattern
+        Optional<Card> result = allCards.stream()
+                .filter(card -> {
+                    boolean matches = CardMaskingUtil.matchesMaskedPattern(card.getCardNumber(), maskedCardNumber);
+                    if (matches) {
+                        log.info("Found matching card: {} matches pattern {}", 
+                                CardMaskingUtil.mask(card.getCardNumber()), maskedCardNumber);
+                    }
+                    return matches;
+                })
+                .findFirst();
+        
+        if (result.isEmpty()) {
+            log.warn("No card found matching masked pattern: {}", maskedCardNumber);
+        }
+        
+        return result;
     }
 
     @Override

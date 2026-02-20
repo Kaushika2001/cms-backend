@@ -3,6 +3,7 @@ package com.epic.cms.controller;
 import com.epic.cms.dto.CardDTO;
 import com.epic.cms.dto.CardResponseDTO;
 import com.epic.cms.dto.CreateCardDTO;
+import com.epic.cms.dto.MaskedCardIdDTO;
 import com.epic.cms.service.CardService;
 import com.epic.cms.service.impl.CardServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
@@ -69,6 +70,31 @@ public class CardController {
         log.info("GET /api/v1/cards/expiring?days={} - Get cards expiring in {} days", days, days);
         List<CardResponseDTO> cards = cardService.getCardsExpiringInDaysMasked(days);
         return ResponseEntity.ok(cards);
+    }
+
+    @GetMapping("/lookup")
+    @Operation(summary = "Get maskedCardId for card number", 
+               description = "Retrieve maskedCardId and card details for a given card number (masked or unmasked). " +
+                             "Example: /lookup?cardNumber=589925******0233 or /lookup?cardNumber=5899250123450233")
+    public ResponseEntity<CardResponseDTO> getMaskedCardIdForCardNumber(
+            @Parameter(description = "Card number (masked like 589925******0233 or unmasked)") 
+            @RequestParam String cardNumber) {
+        log.info("GET /api/v1/cards/lookup?cardNumber={} - Get maskedCardId for card number", cardNumber);
+        CardResponseDTO card = cardService.getMaskedCardIdForCardNumber(cardNumber);
+        return ResponseEntity.ok(card);
+    }
+
+    @GetMapping("/masked-id")
+    @Operation(summary = "Get only maskedCardId for card number", 
+               description = "Retrieve only maskedCardId for a given card number (masked or unmasked). " +
+                             "Returns a lightweight response with just the maskedCardId. " +
+                             "Example: /masked-id?cardNumber=589925******0233")
+    public ResponseEntity<MaskedCardIdDTO> getMaskedCardIdOnly(
+            @Parameter(description = "Card number (masked like 589925******0233 or unmasked)") 
+            @RequestParam String cardNumber) {
+        log.info("GET /api/v1/cards/masked-id?cardNumber={} - Get maskedCardId only", cardNumber);
+        MaskedCardIdDTO maskedCardId = cardService.getMaskedCardIdOnly(cardNumber);
+        return ResponseEntity.ok(maskedCardId);
     }
 
     @PostMapping

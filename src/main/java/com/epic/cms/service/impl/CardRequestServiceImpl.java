@@ -7,6 +7,7 @@ import com.epic.cms.dto.CardRequestResponseDTO;
 import com.epic.cms.dto.CreateCardRequestDTO;
 import com.epic.cms.exception.InvalidRequestException;
 import com.epic.cms.exception.ResourceNotFoundException;
+import com.epic.cms.model.Card;
 import com.epic.cms.model.CardRequest;
 import com.epic.cms.repository.ICardRepository;
 import com.epic.cms.repository.ICardRequestRepository;
@@ -135,16 +136,26 @@ public class CardRequestServiceImpl implements ICardRequestService {
     public CardRequestDTO createRequest(CreateCardRequestDTO createRequestDTO) {
         log.info("Creating new card request");
 
-        // Verify card exists
-        cardRepository.findByCardNumber(createRequestDTO.getCardNumber())
-                .orElseThrow(() -> new ResourceNotFoundException("Card", "cardNumber", createRequestDTO.getCardNumber()));
+        // Find the card by either maskedCardId (preferred) or cardNumber (legacy)
+        Card card;
+        if (createRequestDTO.getMaskedCardId() != null && !createRequestDTO.getMaskedCardId().isBlank()) {
+            log.info("Looking up card by maskedCardId: {}", createRequestDTO.getMaskedCardId());
+            card = cardRepository.findByMaskedCardId(createRequestDTO.getMaskedCardId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Card", "maskedCardId", createRequestDTO.getMaskedCardId()));
+        } else if (createRequestDTO.getCardNumber() != null && !createRequestDTO.getCardNumber().isBlank()) {
+            log.info("Looking up card by cardNumber (legacy)");
+            card = cardRepository.findByCardNumber(createRequestDTO.getCardNumber())
+                    .orElseThrow(() -> new ResourceNotFoundException("Card", "cardNumber", createRequestDTO.getCardNumber()));
+        } else {
+            throw new InvalidRequestException("Either maskedCardId or cardNumber must be provided");
+        }
 
         // Validate request type exists
         cardRequestTypeRepository.findByCode(createRequestDTO.getRequestReasonCode())
                 .orElseThrow(() -> new ResourceNotFoundException("CardRequestType", "code", createRequestDTO.getRequestReasonCode()));
 
         CardRequest request = CardRequest.builder()
-                .cardNumber(createRequestDTO.getCardNumber())
+                .cardNumber(card.getCardNumber()) // Use the actual card number from the database
                 .requestReasonCode(createRequestDTO.getRequestReasonCode())
                 .requestStatusCode(StatusCodes.REQUEST_PENDING)
                 .remark(createRequestDTO.getRemark())
@@ -172,6 +183,8 @@ public class CardRequestServiceImpl implements ICardRequestService {
         cardRequestTypeRepository.findByCode(updateRequestDTO.getRequestReasonCode())
                 .orElseThrow(() -> new ResourceNotFoundException("CardRequestType", "code", updateRequestDTO.getRequestReasonCode()));
 
+        // Note: We don't update the card number for existing requests
+        // Only the request reason and remark can be updated
         request.setRequestReasonCode(updateRequestDTO.getRequestReasonCode());
         request.setRemark(updateRequestDTO.getRemark());
 

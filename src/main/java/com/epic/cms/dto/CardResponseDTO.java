@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @Builder
 public class CardResponseDTO {
 
+    private String maskedCardId; // Unique identifier (e.g., CRD-M-943E49CC)
     private String cardNumber; // This will be masked (e.g., 123456******3456)
     private LocalDate expiryDate;
     private String cardStatus;
