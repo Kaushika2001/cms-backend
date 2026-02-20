@@ -183,17 +183,6 @@ public class CardServiceImpl implements CardService {
         return convertToDTO(cardRepository.findByCardNumber(cardNumber).get());
     }
 
-    public void deleteCard(String cardNumber) {
-        log.info("Deleting card");
-
-        if (!cardRepository.existsByCardNumber(cardNumber)) {
-            throw new ResourceNotFoundException("Card", "cardNumber", cardNumber);
-        }
-
-        cardRepository.deleteByCardNumber(cardNumber);
-        log.info("Card deleted successfully");
-    }
-
     public Long getCardCountByStatus(String cardStatus) {
         log.info("Getting card count for status: {}", cardStatus);
         return cardRepository.countByStatus(cardStatus);

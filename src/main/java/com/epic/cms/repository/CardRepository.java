@@ -177,12 +177,6 @@ public class CardRepository implements ICardRepository {
     }
 
     @Override
-    public int deleteByCardNumber(String cardNumber) {
-        String sql = "DELETE FROM Card WHERE CardNumber = ?";
-        return jdbcTemplate.update(sql, cardNumber);
-    }
-
-    @Override
     public boolean existsByCardNumber(String cardNumber) {
         String sql = "SELECT COUNT(*) FROM Card WHERE CardNumber = ?";
         Integer count = jdbcTemplate.queryForObject(sql, Integer.class, cardNumber);

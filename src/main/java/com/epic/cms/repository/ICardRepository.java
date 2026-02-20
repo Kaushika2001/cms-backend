@@ -85,13 +85,6 @@ public interface ICardRepository {
     int updateCardStatus(String cardNumber, String newStatus);
     
     /**
-     * Delete a card by card number
-     * @param cardNumber The card number to delete
-     * @return Number of rows affected
-     */
-    int deleteByCardNumber(String cardNumber);
-    
-    /**
      * Check if a card exists by card number
      * @param cardNumber The card number to check
      * @return true if the card exists, false otherwise

@@ -126,15 +126,6 @@ public class CardController {
         return ResponseEntity.ok(updatedCard);
     }
 
-    @DeleteMapping("/{cardNumber}")
-    @Operation(summary = "Delete card", description = "Delete a card from the system")
-    public ResponseEntity<Void> deleteCard(
-            @Parameter(description = "Card number") @PathVariable String cardNumber) {
-        log.info("DELETE /api/v1/cards/{} - Delete card", cardNumber);
-        cardService.deleteCard(cardNumber);
-        return ResponseEntity.noContent().build();
-    }
-
     @GetMapping("/count")
     @Operation(summary = "Get card count by status", description = "Get the count of cards with a specific status")
     public ResponseEntity<Long> getCardCountByStatus(
