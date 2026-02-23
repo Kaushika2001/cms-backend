@@ -4,7 +4,6 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 
 @Data
 @NoArgsConstructor
@@ -16,9 +15,9 @@ public class CreateCardDTO {
     @Pattern(regexp = "\\d{13,16}", message = "Card number must be 13-16 digits")
     private String cardNumber;
 
-    @NotNull(message = "Expiry date is required")
-    @Future(message = "Expiry date must be in the future")
-    private LocalDate expiryDate;
+    @NotBlank(message = "Expiry date is required")
+    @Pattern(regexp = "(0[1-9]|1[0-2])-(20[2-9][0-9]|2[1-9][0-9]{2})", message = "Expiry date must be in MM-YYYY format (e.g., 02-2026)")
+    private String expiryDate;
 
     @NotBlank(message = "Card status is required")
     @Pattern(regexp = "IACT|CACT|DACT", message = "Card status must be IACT, CACT, or DACT")

@@ -3,6 +3,7 @@ package com.epic.cms.service;
 import com.epic.cms.dto.ApproveRequestDTO;
 import com.epic.cms.dto.CardRequestDTO;
 import com.epic.cms.dto.CreateCardRequestDTO;
+import com.epic.cms.dto.EncryptedPayload;
 
 import java.util.List;
 
@@ -58,6 +59,16 @@ public interface ICardRequestService {
      * @return The created card request
      */
     CardRequestDTO createRequest(CreateCardRequestDTO createRequestDTO);
+    
+    /**
+     * Create a new card request with encrypted payload (Transport Layer Encryption)
+     * Accepts encrypted CreateCardRequestDTO, decrypts with transport key,
+     * finds card by decrypting stored card numbers, creates request
+     * @param encryptedPayload The encrypted request creation data
+     * @return The created card request
+     */
+    CardRequestDTO createCardRequestEncrypted(EncryptedPayload encryptedPayload);
+
     
     /**
      * Update an existing card request

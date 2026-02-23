@@ -1,15 +1,25 @@
 package com.epic.cms.controller;
 
+import com.epic.cms.config.EncryptionConfig;
 import com.epic.cms.dto.CardDTO;
 import com.epic.cms.dto.CardResponseDTO;
 import com.epic.cms.dto.CreateCardDTO;
+import com.epic.cms.dto.EncryptedPayload;
 import com.epic.cms.dto.MaskedCardIdDTO;
+import com.epic.cms.dto.UpdateCardStatusDTO;
 import com.epic.cms.service.CardService;
 import com.epic.cms.service.impl.CardServiceImpl;
+import com.epic.cms.util.CardMaskingUtil;
+import com.epic.cms.util.EncryptionUtil;
+import com.epic.cms.util.ExpiryDateUtil;
+import com.epic.cms.util.LoggerUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Valid;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -18,6 +28,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/cards")
@@ -28,6 +40,9 @@ import java.util.List;
 public class CardController {
 
     private final CardServiceImpl cardService;
+    private final EncryptionConfig encryptionConfig;
+    private final ObjectMapper objectMapper;
+    private final Validator validator;
 
     @GetMapping
     @Operation(summary = "Get all cards", description = "Retrieve a list of all cards with masked card numbers")
@@ -98,12 +113,72 @@ public class CardController {
     }
 
     @PostMapping
-    @Operation(summary = "Create a new card", description = "Create a new card in the system")
+    @Operation(summary = "Create a new card", description = "Create a new card in the system (plain text - for internal use)")
     public ResponseEntity<CardDTO> createCard(
             @Parameter(description = "Card creation details") @Valid @RequestBody CreateCardDTO createCardDTO) {
         log.info("POST /api/v1/cards - Create new card");
         CardDTO createdCard = cardService.createCard(createCardDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdCard);
+    }
+
+    @PostMapping("/encrypted")
+    @Operation(summary = "Create a new card (encrypted)", 
+               description = "Create a new card using encrypted payload from frontend. " +
+                             "The payload is encrypted with AES-256-GCM using the transport key.")
+    public ResponseEntity<CardDTO> createCardEncrypted(
+            @Parameter(description = "Encrypted card creation payload") 
+            @Valid @RequestBody EncryptedPayload encryptedPayload) {
+        try {
+            LoggerUtil.info(CardController.class, "POST /api/v1/cards/encrypted - Received encrypted card creation request");
+            
+            // Step 1: Decrypt the payload using transport key
+            String transportKey = encryptionConfig.getTransportKey();
+            String decryptedJson = EncryptionUtil.decrypt(
+                encryptedPayload.getEncryptedData(), 
+                transportKey
+            );
+            
+            LoggerUtil.debug(CardController.class, "Successfully decrypted payload");
+            LoggerUtil.debug(CardController.class, "Decrypted JSON: {}", decryptedJson);
+            
+            // Step 2: Parse JSON to CreateCardDTO
+            CreateCardDTO cardDTO = objectMapper.readValue(decryptedJson, CreateCardDTO.class);
+            
+            LoggerUtil.debug(CardController.class, "Successfully parsed CreateCardDTO from decrypted data");
+            LoggerUtil.debug(CardController.class, "Card number from frontend: {}", CardMaskingUtil.mask(cardDTO.getCardNumber()));
+            
+            // Step 3: Validate the decrypted DTO
+            Set<ConstraintViolation<CreateCardDTO>> violations = validator.validate(cardDTO);
+            if (!violations.isEmpty()) {
+                String errors = violations.stream()
+                    .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                    .collect(Collectors.joining(", "));
+                LoggerUtil.error(CardController.class, "Validation failed for decrypted card data: {}", errors);
+                LoggerUtil.error(CardController.class, "Decrypted card number: {}", CardMaskingUtil.mask(cardDTO.getCardNumber()));
+                throw new IllegalArgumentException("Invalid card data: " + errors);
+            }
+            
+            // Step 3.5: Validate expiry date is in the future
+            if (!ExpiryDateUtil.isFutureDate(cardDTO.getExpiryDate())) {
+                LoggerUtil.error(CardController.class, "Expiry date validation failed: {} is not in the future", cardDTO.getExpiryDate());
+                throw new IllegalArgumentException("Expiry date must be in the future");
+            }
+            
+            // Step 4: Create card (service will encrypt card number with storage key)
+            CardDTO createdCard = cardService.createCard(cardDTO);
+            
+            LoggerUtil.info(CardController.class, "Card created successfully with card number: {}", 
+                CardMaskingUtil.mask(createdCard.getCardNumber()));
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdCard);
+            
+        } catch (IllegalArgumentException e) {
+            LoggerUtil.error(CardController.class, "Invalid encrypted payload or card data: {}", e.getMessage());
+            throw e; // Rethrow to be handled by GlobalExceptionHandler
+        } catch (Exception e) {
+            LoggerUtil.error(CardController.class, "Error creating card from encrypted payload", e);
+            throw new RuntimeException("Failed to create card: " + e.getMessage());
+        }
     }
 
     @PutMapping("/{cardNumber}")
@@ -124,6 +199,63 @@ public class CardController {
         log.info("PATCH /api/v1/cards/{}/status - Update card status to {}", cardNumber, status);
         CardDTO updatedCard = cardService.updateCardStatus(cardNumber, status);
         return ResponseEntity.ok(updatedCard);
+    }
+
+    @PostMapping("/activate/encrypted")
+    @Operation(summary = "Update card status (encrypted)", 
+               description = "Update card status using encrypted payload. " +
+                             "The payload contains the card number (can be masked like 453201******0366) and new status. " +
+                             "Backend will decrypt, lookup, and update the card status.")
+    public ResponseEntity<CardResponseDTO> updateCardStatusEncrypted(
+            @Parameter(description = "Encrypted status update payload") 
+            @Valid @RequestBody EncryptedPayload encryptedPayload) {
+        try {
+            LoggerUtil.info(CardController.class, "POST /api/v1/cards/activate/encrypted - Received encrypted status update request");
+            
+            // Step 1: Decrypt the payload using transport key
+            String transportKey = encryptionConfig.getTransportKey();
+            String decryptedJson = EncryptionUtil.decrypt(
+                encryptedPayload.getEncryptedData(), 
+                transportKey
+            );
+            
+            LoggerUtil.debug(CardController.class, "Successfully decrypted status update payload");
+            LoggerUtil.debug(CardController.class, "Decrypted JSON: {}", decryptedJson);
+            
+            // Step 2: Parse JSON to UpdateCardStatusDTO
+            UpdateCardStatusDTO statusDTO = objectMapper.readValue(decryptedJson, UpdateCardStatusDTO.class);
+            
+            LoggerUtil.debug(CardController.class, "Successfully parsed UpdateCardStatusDTO from decrypted data");
+            LoggerUtil.debug(CardController.class, "Card number from frontend: {}", CardMaskingUtil.mask(statusDTO.getCardNumber()));
+            LoggerUtil.debug(CardController.class, "New status: {}", statusDTO.getNewStatus());
+            
+            // Step 3: Validate the decrypted DTO
+            Set<ConstraintViolation<UpdateCardStatusDTO>> violations = validator.validate(statusDTO);
+            if (!violations.isEmpty()) {
+                String errors = violations.stream()
+                    .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                    .collect(Collectors.joining(", "));
+                LoggerUtil.error(CardController.class, "Validation failed for status update: {}", errors);
+                throw new IllegalArgumentException("Invalid status update data: " + errors);
+            }
+            
+            // Step 4: Update card status (service handles masked/encrypted card number lookup)
+            CardResponseDTO updatedCard = cardService.updateCardStatusEncrypted(
+                statusDTO.getCardNumber(), 
+                statusDTO.getNewStatus()
+            );
+            
+            LoggerUtil.info(CardController.class, "Card status updated successfully to: {}", statusDTO.getNewStatus());
+            
+            return ResponseEntity.ok(updatedCard);
+            
+        } catch (IllegalArgumentException e) {
+            LoggerUtil.error(CardController.class, "Invalid encrypted payload or status data: {}", e.getMessage());
+            throw e; // Rethrow to be handled by GlobalExceptionHandler
+        } catch (Exception e) {
+            LoggerUtil.error(CardController.class, "Error updating card status from encrypted payload", e);
+            throw new RuntimeException("Failed to update card status: " + e.getMessage());
+        }
     }
 
     @GetMapping("/count")

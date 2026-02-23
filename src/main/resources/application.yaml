@@ -17,6 +17,7 @@ spring:
     enabled: true
     clean-disabled: false
     locations: classpath:db/migration
+    validate-on-migrate: false
 
 server:
   port: 8080
@@ -26,15 +27,30 @@ server:
     include-stacktrace: on_param
 
 logging:
+  config: classpath:logback-spring.xml
   level:
     com.epic.cms: DEBUG
     com.epic.cms.config: DEBUG
-    org.springframework.web: DEBUG
-    org.springframework.security: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    path: ./logs
+
+# Encryption Keys
+# IMPORTANT: Use environment variables in production. Never commit actual keys to version control.
+encryption:
+  # Transport key - shared with frontend (must match VITE_ENCRYPTION_KEY)
+  # This key is used to decrypt data received from frontend
+  transport:
+    key: ${TRANSPORT_ENCRYPTION_KEY:bPRw3dR0xfnHIn3Vr0mFS4BLjEvzDpWPW/0k2+P+72c=}
+  
+  # Storage key - backend only (NEVER expose to frontend)
+  # This key is used to encrypt sensitive data (card numbers) in the database
+  # Generate a new key for production using: openssl rand -base64 32
+  storage:
+    key: ${STORAGE_ENCRYPTION_KEY:Oz/u0t6uq32rDyqFSsTdX0KiD1aMv6H1RzJO0hbHNhA=}
 
 springdoc:
   api-docs:

@@ -1,5 +1,6 @@
 package com.epic.cms.exception;
 
+import com.epic.cms.util.LoggerUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -78,12 +79,16 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex,
             HttpServletRequest request) {
         
-        log.error("Validation error: {}", ex.getMessage());
-        
         List<String> details = new ArrayList<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
             details.add(error.getField() + ": " + error.getDefaultMessage());
         }
+        
+        // Log concise error message instead of full stack trace
+        log.error("Validation failed on {}: {} field(s) - {}", 
+                request.getRequestURI(), 
+                details.size(),
+                String.join(", ", details));
         
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
@@ -164,21 +169,83 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
+            IllegalArgumentException ex,
+            HttpServletRequest request) {
+        
+        log.error("Illegal argument: {}", ex.getMessage());
+        
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("Bad Request")
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .build();
+        
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(
             Exception ex,
             HttpServletRequest request) {
         
-        log.error("Unexpected error occurred", ex);
+        // Check if this is an encryption/decryption related error
+        if (isEncryptionError(ex)) {
+            LoggerUtil.error(GlobalExceptionHandler.class, "Encryption/Decryption error occurred", ex);
+            
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .timestamp(LocalDateTime.now())
+                    .status(HttpStatus.BAD_REQUEST.value())
+                    .error("Encryption Error")
+                    .message("Failed to process encrypted data. Please verify the payload format and encryption key.")
+                    .path(request.getRequestURI())
+                    .build();
+            
+            return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+        }
+        
+        // Handle general runtime exceptions
+        LoggerUtil.error(GlobalExceptionHandler.class, "Unexpected error occurred", ex);
         
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .error(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())
-                .message("An unexpected error occurred: " + ex.getMessage())
+                .message("An unexpected error occurred. Please contact support if the issue persists.")
                 .path(request.getRequestURI())
                 .build();
         
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    
+    /**
+     * Check if the exception is related to encryption/decryption.
+     * 
+     * @param ex The exception to check
+     * @return true if encryption-related, false otherwise
+     */
+    private boolean isEncryptionError(Exception ex) {
+        if (ex == null) {
+            return false;
+        }
+        
+        String message = ex.getMessage();
+        if (message == null) {
+            return false;
+        }
+        
+        // Check for common encryption error patterns
+        return message.contains("Encryption failed") ||
+               message.contains("Decryption failed") ||
+               message.contains("Invalid encrypted data format") ||
+               message.contains("encryption key") ||
+               message.contains("AES") ||
+               message.contains("GCM") ||
+               (ex.getCause() != null && 
+                (ex.getCause().getClass().getName().contains("crypto") ||
+                 ex.getCause().getClass().getName().contains("Cipher")));
     }
 }

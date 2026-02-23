@@ -4,6 +4,7 @@ import com.epic.cms.dto.ApproveRequestDTO;
 import com.epic.cms.dto.CardRequestDTO;
 import com.epic.cms.dto.CardRequestResponseDTO;
 import com.epic.cms.dto.CreateCardRequestDTO;
+import com.epic.cms.dto.EncryptedPayload;
 import com.epic.cms.service.ICardRequestService;
 import com.epic.cms.service.impl.CardRequestServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
@@ -55,6 +56,15 @@ public class CardRequestController {
         return ResponseEntity.ok(requests);
     }
 
+    @GetMapping("/masked-card/{maskedCardId}")
+    @Operation(summary = "Get requests by masked card ID", description = "Retrieve all requests for a specific card using its masked card ID")
+    public ResponseEntity<List<CardRequestResponseDTO>> getRequestsByMaskedCardId(
+            @Parameter(description = "Masked card ID (e.g., CRD-M-256AB400)") @PathVariable String maskedCardId) {
+        log.info("GET /api/v1/requests/masked-card/{} - Get requests by masked card ID", maskedCardId);
+        List<CardRequestResponseDTO> requests = cardRequestService.getRequestsByMaskedCardId(maskedCardId);
+        return ResponseEntity.ok(requests);
+    }
+
     @GetMapping("/status/{status}")
     @Operation(summary = "Get requests by status", description = "Retrieve all requests with a specific status (PEND, APPR, RJCT) with masked card numbers")
     public ResponseEntity<List<CardRequestResponseDTO>> getRequestsByStatus(
@@ -89,6 +99,20 @@ public class CardRequestController {
         CardRequestDTO createdRequest = cardRequestService.createRequest(createRequestDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdRequest);
     }
+
+    @PostMapping("/encrypted")
+    @Operation(summary = "Create a new request (encrypted)", 
+               description = "Create a new card request with encrypted payload. " +
+                           "Encrypts CreateCardRequestDTO with transport key. " +
+                           "Supports card number lookup in encrypted storage.")
+    public ResponseEntity<CardRequestDTO> createRequestEncrypted(
+            @Parameter(description = "Encrypted request creation details") 
+            @Valid @RequestBody EncryptedPayload encryptedPayload) {
+        log.info("POST /api/v1/requests/encrypted - Create new request with encrypted payload");
+        CardRequestDTO createdRequest = cardRequestService.createCardRequestEncrypted(encryptedPayload);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdRequest);
+    }
+
 
     @PutMapping("/{requestId}")
     @Operation(summary = "Update request", description = "Update an existing card request (only pending requests)")

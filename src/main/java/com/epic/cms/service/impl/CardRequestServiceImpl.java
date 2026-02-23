@@ -1,10 +1,12 @@
 package com.epic.cms.service.impl;
 
+import com.epic.cms.config.EncryptionConfig;
 import com.epic.cms.constants.StatusCodes;
 import com.epic.cms.dto.ApproveRequestDTO;
 import com.epic.cms.dto.CardRequestDTO;
 import com.epic.cms.dto.CardRequestResponseDTO;
 import com.epic.cms.dto.CreateCardRequestDTO;
+import com.epic.cms.dto.EncryptedPayload;
 import com.epic.cms.exception.InvalidRequestException;
 import com.epic.cms.exception.ResourceNotFoundException;
 import com.epic.cms.model.Card;
@@ -15,6 +17,8 @@ import com.epic.cms.repository.ICardRequestTypeRepository;
 import com.epic.cms.repository.IRequestStatusRepository;
 import com.epic.cms.service.ICardRequestService;
 import com.epic.cms.util.CardMaskingUtil;
+import com.epic.cms.util.EncryptionUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +35,8 @@ public class CardRequestServiceImpl implements ICardRequestService {
     private final ICardRepository cardRepository;
     private final ICardRequestTypeRepository cardRequestTypeRepository;
     private final IRequestStatusRepository requestStatusRepository;
+    private final EncryptionConfig encryptionConfig;
+    private final ObjectMapper objectMapper;
 
     @Override
     public List<CardRequestDTO> getAllRequests() {
@@ -76,6 +82,24 @@ public class CardRequestServiceImpl implements ICardRequestService {
     public List<CardRequestResponseDTO> getRequestsByCardNumberMasked(String cardNumber) {
         log.info("Fetching requests for card (masked)");
         return cardRequestRepository.findByCardNumber(cardNumber)
+                .stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<CardRequestResponseDTO> getRequestsByMaskedCardId(String maskedCardId) {
+        log.info("Fetching requests for masked card ID: {}", maskedCardId);
+        
+        // First, find the card by masked card ID
+        Card card = cardRepository.findByMaskedCardId(maskedCardId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                    "Card", 
+                    "maskedCardId", 
+                    maskedCardId
+                ));
+        
+        // Then, find all requests for that card using the encrypted card number
+        return cardRequestRepository.findByCardNumber(card.getCardNumber())
                 .stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
@@ -165,6 +189,93 @@ public class CardRequestServiceImpl implements ICardRequestService {
         log.info("Card request created successfully with id: {}", requestId);
 
         return convertToDTO(cardRequestRepository.findById(requestId).get());
+    }
+
+    @Override
+    public CardRequestDTO createCardRequestEncrypted(EncryptedPayload encryptedPayload) {
+        log.info("Creating new card request with encrypted payload");
+
+        try {
+            // Step 1: Decrypt the payload with transport key
+            String transportKey = encryptionConfig.getTransportKey();
+            String decryptedJson = EncryptionUtil.decrypt(
+                    encryptedPayload.getEncryptedData(),
+                    transportKey
+            );
+            log.debug("Decrypted card request payload");
+
+            // Step 2: Parse the decrypted JSON to CreateCardRequestDTO
+            CreateCardRequestDTO createRequestDTO = objectMapper.readValue(decryptedJson, CreateCardRequestDTO.class);
+            log.debug("Parsed CreateCardRequestDTO from decrypted payload");
+
+            // Step 3: Find the card by card number (need to decrypt stored card numbers)
+            Card card;
+            if (createRequestDTO.getCardNumber() != null && !createRequestDTO.getCardNumber().isBlank()) {
+                log.info("Looking up card by decrypting stored card numbers");
+                card = findCardByUnencryptedNumber(createRequestDTO.getCardNumber());
+            } else {
+                throw new InvalidRequestException("Card number must be provided in encrypted request");
+            }
+
+            // Step 4: Validate request type exists
+            cardRequestTypeRepository.findByCode(createRequestDTO.getRequestReasonCode())
+                    .orElseThrow(() -> new ResourceNotFoundException("CardRequestType", "code", createRequestDTO.getRequestReasonCode()));
+
+            // Step 5: Create the card request
+            CardRequest request = CardRequest.builder()
+                    .cardNumber(card.getCardNumber()) // Use the encrypted card number from the database
+                    .requestReasonCode(createRequestDTO.getRequestReasonCode())
+                    .requestStatusCode(StatusCodes.REQUEST_PENDING)
+                    .remark(createRequestDTO.getRemark())
+                    .build();
+
+            Integer requestId = cardRequestRepository.insert(request);
+            log.info("Card request created successfully with id: {}", requestId);
+
+            return convertToDTO(cardRequestRepository.findById(requestId).get());
+
+        } catch (Exception e) {
+            log.error("Error creating encrypted card request: {}", e.getMessage());
+            throw new InvalidRequestException("Failed to create encrypted card request: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Helper method to find a card by decrypting all stored card numbers.
+     * This is needed when cards are stored with encrypted card numbers.
+     */
+    private Card findCardByUnencryptedNumber(String unencryptedCardNumber) {
+        log.info("Searching for card by decrypting stored card numbers");
+
+        // Get all cards
+        List<Card> allCards = cardRepository.findAll();
+        log.debug("Total cards to check: {}", allCards.size());
+
+        String storageKey = encryptionConfig.getStorageKey();
+
+        // Find the card whose decrypted card number matches
+        for (Card card : allCards) {
+            try {
+                // Check if card number is encrypted (contains ".")
+                if (card.getCardNumber().contains(".")) {
+                    String decryptedCardNumber = EncryptionUtil.decrypt(card.getCardNumber(), storageKey);
+                    if (unencryptedCardNumber.equals(decryptedCardNumber)) {
+                        log.info("Found matching card by decryption");
+                        return card;
+                    }
+                } else {
+                    // Card number might not be encrypted (legacy data), try direct comparison
+                    if (unencryptedCardNumber.equals(card.getCardNumber())) {
+                        log.info("Found matching card (unencrypted legacy data)");
+                        return card;
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Error decrypting card number, might be legacy format: {}", e.getMessage());
+            }
+        }
+
+        throw new ResourceNotFoundException("Card", "cardNumber", "****");
     }
 
     @Override
@@ -301,9 +412,25 @@ public class CardRequestServiceImpl implements ICardRequestService {
     }
 
     private CardRequestResponseDTO convertToResponseDTO(CardRequest request) {
+        // Get the encrypted card number from the request
+        String encryptedCardNumber = request.getCardNumber();
+        String decryptedCardNumber = encryptedCardNumber;
+        
+        // Decrypt if the card number is in encrypted format
+        if (encryptedCardNumber != null && encryptedCardNumber.contains(".")) {
+            try {
+                String storageKey = encryptionConfig.getStorageKey();
+                decryptedCardNumber = EncryptionUtil.decrypt(encryptedCardNumber, storageKey);
+            } catch (Exception e) {
+                log.error("Error decrypting card number for response: {}", e.getMessage());
+                // If decryption fails, use the encrypted value for masking
+            }
+        }
+        
         CardRequestResponseDTO dto = CardRequestResponseDTO.builder()
                 .requestId(request.getRequestId())
-                .cardNumber(CardMaskingUtil.mask(request.getCardNumber()))
+                .maskedCardId(CardMaskingUtil.generateMaskedCardId(decryptedCardNumber))
+                .cardNumber(CardMaskingUtil.mask(decryptedCardNumber))
                 .requestReasonCode(request.getRequestReasonCode())
                 .requestStatusCode(request.getRequestStatusCode())
                 .remark(request.getRemark())

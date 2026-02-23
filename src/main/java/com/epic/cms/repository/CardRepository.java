@@ -1,7 +1,9 @@
 package com.epic.cms.repository;
 
+import com.epic.cms.config.EncryptionConfig;
 import com.epic.cms.model.Card;
 import com.epic.cms.util.CardMaskingUtil;
+import com.epic.cms.util.EncryptionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,6 +22,7 @@ import java.util.Optional;
 public class CardRepository implements ICardRepository {
 
     private final JdbcTemplate jdbcTemplate;
+    private final EncryptionConfig encryptionConfig;
 
     private final RowMapper<Card> cardRowMapper = new CardRowMapper();
 
@@ -60,10 +63,28 @@ public class CardRepository implements ICardRepository {
         
         String sql = "SELECT * FROM Card";
         List<Card> allCards = jdbcTemplate.query(sql, cardRowMapper);
+        String storageKey = encryptionConfig.getStorageKey();
         
         // Find the card whose cardNumber generates the matching maskedCardId
+        // IMPORTANT: Must decrypt card number first before generating maskedCardId
         return allCards.stream()
-                .filter(card -> maskedCardId.equals(CardMaskingUtil.generateMaskedCardId(card.getCardNumber())))
+                .filter(card -> {
+                    try {
+                        String cardNumber = card.getCardNumber();
+                        
+                        // Decrypt if encrypted (contains "." separator for IV.ciphertext format)
+                        if (cardNumber != null && cardNumber.contains(".")) {
+                            cardNumber = EncryptionUtil.decrypt(cardNumber, storageKey);
+                        }
+                        
+                        // Generate maskedCardId from decrypted number and compare
+                        String generatedMaskedId = CardMaskingUtil.generateMaskedCardId(cardNumber);
+                        return maskedCardId.equals(generatedMaskedId);
+                    } catch (Exception e) {
+                        log.debug("Error decrypting card during maskedCardId lookup: {}", e.getMessage());
+                        return false;
+                    }
+                })
                 .findFirst();
     }
 
