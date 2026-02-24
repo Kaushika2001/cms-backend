@@ -104,4 +104,73 @@ public interface ICardRequestRepository {
      * @return Number of requests with the specified status
      */
     Long countByStatus(String statusCode);
+    
+    /**
+     * Retrieve card requests with pagination
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return List of card requests for the specified page
+     */
+    List<CardRequest> findAll(int page, int size);
+    
+    /**
+     * Find requests by card number with pagination
+     * @param cardNumber The card number to search for
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return List of requests for the card on the specified page
+     */
+    List<CardRequest> findByCardNumber(String cardNumber, int page, int size);
+    
+    /**
+     * Find requests by status with pagination
+     * @param statusCode The status code to filter by
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return List of requests with the specified status on the page
+     */
+    List<CardRequest> findByRequestStatusCode(String statusCode, int page, int size);
+    
+    /**
+     * Find requests by reason code with pagination
+     * @param reasonCode The reason code to filter by
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return List of requests with the specified reason code on the page
+     */
+    List<CardRequest> findByRequestReasonCode(String reasonCode, int page, int size);
+    
+    /**
+     * Find pending requests with pagination
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return List of pending requests on the page
+     */
+    List<CardRequest> findPendingRequests(int page, int size);
+    
+    /**
+     * Count all requests
+     * @return Total number of requests
+     */
+    long count();
+    
+    /**
+     * Count requests by card number
+     * @param cardNumber The card number to count for
+     * @return Number of requests for the card
+     */
+    long countByCardNumber(String cardNumber);
+    
+    /**
+     * Count requests by reason code
+     * @param reasonCode The reason code to count
+     * @return Number of requests with the specified reason code
+     */
+    long countByReasonCode(String reasonCode);
+    
+    /**
+     * Count pending requests
+     * @return Total number of pending requests
+     */
+    long countPendingRequests();
 }

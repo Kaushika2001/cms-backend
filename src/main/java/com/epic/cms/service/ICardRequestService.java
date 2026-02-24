@@ -4,6 +4,7 @@ import com.epic.cms.dto.ApproveRequestDTO;
 import com.epic.cms.dto.CardRequestDTO;
 import com.epic.cms.dto.CreateCardRequestDTO;
 import com.epic.cms.dto.EncryptedPayload;
+import com.epic.cms.dto.PaginatedResponse;
 
 import java.util.List;
 
@@ -98,4 +99,47 @@ public interface ICardRequestService {
      * @return Number of requests with the status
      */
     Long getRequestCountByStatus(String statusCode);
+    
+    /**
+     * Get all card requests with pagination
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return Paginated response containing card requests
+     */
+    PaginatedResponse<CardRequestDTO> getAllRequestsPaginated(int page, int size);
+    
+    /**
+     * Get requests by card number with pagination
+     * @param cardNumber The card number
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return Paginated response containing card requests
+     */
+    PaginatedResponse<CardRequestDTO> getRequestsByCardNumberPaginated(String cardNumber, int page, int size);
+    
+    /**
+     * Get requests by status with pagination
+     * @param statusCode The status code
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return Paginated response containing card requests
+     */
+    PaginatedResponse<CardRequestDTO> getRequestsByStatusPaginated(String statusCode, int page, int size);
+    
+    /**
+     * Get requests by type with pagination
+     * @param requestType The request type
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return Paginated response containing card requests
+     */
+    PaginatedResponse<CardRequestDTO> getRequestsByTypePaginated(String requestType, int page, int size);
+    
+    /**
+     * Get pending requests with pagination
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return Paginated response containing pending card requests
+     */
+    PaginatedResponse<CardRequestDTO> getPendingRequestsPaginated(int page, int size);
 }

@@ -125,4 +125,67 @@ public class CardRequestRepository implements ICardRequestRepository {
         String sql = "SELECT COUNT(*) FROM CardRequest WHERE RequestStatusCode = ?";
         return jdbcTemplate.queryForObject(sql, Long.class, statusCode);
     }
+
+    @Override
+    public List<CardRequest> findAll(int page, int size) {
+        String sql = "SELECT * FROM CardRequest ORDER BY CreatedTime DESC LIMIT ? OFFSET ?";
+        int offset = page * size;
+        return jdbcTemplate.query(sql, requestRowMapper, size, offset);
+    }
+
+    @Override
+    public List<CardRequest> findByCardNumber(String cardNumber, int page, int size) {
+        String sql = "SELECT * FROM CardRequest WHERE CardNumber = ? ORDER BY CreatedTime DESC LIMIT ? OFFSET ?";
+        int offset = page * size;
+        return jdbcTemplate.query(sql, requestRowMapper, cardNumber, size, offset);
+    }
+
+    @Override
+    public List<CardRequest> findByRequestStatusCode(String statusCode, int page, int size) {
+        String sql = "SELECT * FROM CardRequest WHERE RequestStatusCode = ? ORDER BY CreatedTime DESC LIMIT ? OFFSET ?";
+        int offset = page * size;
+        return jdbcTemplate.query(sql, requestRowMapper, statusCode, size, offset);
+    }
+
+    @Override
+    public List<CardRequest> findByRequestReasonCode(String reasonCode, int page, int size) {
+        String sql = "SELECT * FROM CardRequest WHERE RequestReasonCode = ? ORDER BY CreatedTime DESC LIMIT ? OFFSET ?";
+        int offset = page * size;
+        return jdbcTemplate.query(sql, requestRowMapper, reasonCode, size, offset);
+    }
+
+    @Override
+    public List<CardRequest> findPendingRequests(int page, int size) {
+        String sql = "SELECT * FROM CardRequest WHERE RequestStatusCode = 'PEND' ORDER BY CreatedTime ASC LIMIT ? OFFSET ?";
+        int offset = page * size;
+        return jdbcTemplate.query(sql, requestRowMapper, size, offset);
+    }
+
+    @Override
+    public long count() {
+        String sql = "SELECT COUNT(*) FROM CardRequest";
+        Long count = jdbcTemplate.queryForObject(sql, Long.class);
+        return count != null ? count : 0L;
+    }
+
+    @Override
+    public long countByCardNumber(String cardNumber) {
+        String sql = "SELECT COUNT(*) FROM CardRequest WHERE CardNumber = ?";
+        Long count = jdbcTemplate.queryForObject(sql, Long.class, cardNumber);
+        return count != null ? count : 0L;
+    }
+
+    @Override
+    public long countByReasonCode(String reasonCode) {
+        String sql = "SELECT COUNT(*) FROM CardRequest WHERE RequestReasonCode = ?";
+        Long count = jdbcTemplate.queryForObject(sql, Long.class, reasonCode);
+        return count != null ? count : 0L;
+    }
+
+    @Override
+    public long countPendingRequests() {
+        String sql = "SELECT COUNT(*) FROM CardRequest WHERE RequestStatusCode = 'PEND'";
+        Long count = jdbcTemplate.queryForObject(sql, Long.class);
+        return count != null ? count : 0L;
+    }
 }

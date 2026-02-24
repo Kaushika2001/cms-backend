@@ -6,6 +6,7 @@ import com.epic.cms.dto.CardResponseDTO;
 import com.epic.cms.dto.CreateCardDTO;
 import com.epic.cms.dto.EncryptedPayload;
 import com.epic.cms.dto.MaskedCardIdDTO;
+import com.epic.cms.dto.PaginatedResponse;
 import com.epic.cms.dto.UpdateCardStatusDTO;
 import com.epic.cms.service.CardService;
 import com.epic.cms.service.impl.CardServiceImpl;
@@ -265,5 +266,53 @@ public class CardController {
         log.info("GET /api/v1/cards/count?status={} - Get card count by status", status);
         Long count = cardService.getCardCountByStatus(status);
         return ResponseEntity.ok(count);
+    }
+
+    // ==================== Pagination Endpoints ====================
+
+    @GetMapping("/paginated")
+    @Operation(summary = "Get all cards with pagination", 
+               description = "Retrieve a paginated list of all cards with masked card numbers")
+    public ResponseEntity<PaginatedResponse<CardResponseDTO>> getAllCardsPaginated(
+            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+        log.info("GET /api/v1/cards/paginated?page={}&size={} - Get all cards paginated", page, size);
+        PaginatedResponse<CardResponseDTO> response = cardService.getAllCardsPaginated(page, size);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/status/{status}/paginated")
+    @Operation(summary = "Get cards by status with pagination", 
+               description = "Retrieve paginated cards with a specific status (IACT, CACT, DACT)")
+    public ResponseEntity<PaginatedResponse<CardResponseDTO>> getCardsByStatusPaginated(
+            @Parameter(description = "Card status code") @PathVariable String status,
+            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+        log.info("GET /api/v1/cards/status/{}/paginated?page={}&size={} - Get cards by status paginated", status, page, size);
+        PaginatedResponse<CardResponseDTO> response = cardService.getCardsByStatusPaginated(status, page, size);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/expired/paginated")
+    @Operation(summary = "Get expired cards with pagination", 
+               description = "Retrieve paginated list of expired cards")
+    public ResponseEntity<PaginatedResponse<CardResponseDTO>> getExpiredCardsPaginated(
+            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+        log.info("GET /api/v1/cards/expired/paginated?page={}&size={} - Get expired cards paginated", page, size);
+        PaginatedResponse<CardResponseDTO> response = cardService.getExpiredCardsPaginated(page, size);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/expiring/paginated")
+    @Operation(summary = "Get cards expiring soon with pagination", 
+               description = "Retrieve paginated cards expiring within specified days")
+    public ResponseEntity<PaginatedResponse<CardResponseDTO>> getCardsExpiringSoonPaginated(
+            @Parameter(description = "Number of days") @RequestParam(defaultValue = "30") int days,
+            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+        log.info("GET /api/v1/cards/expiring/paginated?days={}&page={}&size={} - Get cards expiring paginated", days, page, size);
+        PaginatedResponse<CardResponseDTO> response = cardService.getExpiringCardsPaginated(days, page, size);
+        return ResponseEntity.ok(response);
     }
 }

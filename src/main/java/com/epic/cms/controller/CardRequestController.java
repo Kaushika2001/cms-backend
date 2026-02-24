@@ -5,6 +5,7 @@ import com.epic.cms.dto.CardRequestDTO;
 import com.epic.cms.dto.CardRequestResponseDTO;
 import com.epic.cms.dto.CreateCardRequestDTO;
 import com.epic.cms.dto.EncryptedPayload;
+import com.epic.cms.dto.PaginatedResponse;
 import com.epic.cms.service.ICardRequestService;
 import com.epic.cms.service.impl.CardRequestServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
@@ -92,11 +93,11 @@ public class CardRequestController {
     }
 
     @PostMapping
-    @Operation(summary = "Create a new request", description = "Create a new card request")
-    public ResponseEntity<CardRequestDTO> createRequest(
+    @Operation(summary = "Create a new request", description = "Create a new card request with masked card number in response")
+    public ResponseEntity<CardRequestResponseDTO> createRequest(
             @Parameter(description = "Request creation details") @Valid @RequestBody CreateCardRequestDTO createRequestDTO) {
         log.info("POST /api/v1/requests - Create new request");
-        CardRequestDTO createdRequest = cardRequestService.createRequest(createRequestDTO);
+        CardRequestResponseDTO createdRequest = cardRequestService.createRequestMasked(createRequestDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdRequest);
     }
 
@@ -104,33 +105,33 @@ public class CardRequestController {
     @Operation(summary = "Create a new request (encrypted)", 
                description = "Create a new card request with encrypted payload. " +
                            "Encrypts CreateCardRequestDTO with transport key. " +
-                           "Supports card number lookup in encrypted storage.")
-    public ResponseEntity<CardRequestDTO> createRequestEncrypted(
+                           "Supports card number lookup in encrypted storage. Returns masked card number.")
+    public ResponseEntity<CardRequestResponseDTO> createRequestEncrypted(
             @Parameter(description = "Encrypted request creation details") 
             @Valid @RequestBody EncryptedPayload encryptedPayload) {
         log.info("POST /api/v1/requests/encrypted - Create new request with encrypted payload");
-        CardRequestDTO createdRequest = cardRequestService.createCardRequestEncrypted(encryptedPayload);
+        CardRequestResponseDTO createdRequest = cardRequestService.createCardRequestEncryptedMasked(encryptedPayload);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdRequest);
     }
 
 
     @PutMapping("/{requestId}")
-    @Operation(summary = "Update request", description = "Update an existing card request (only pending requests)")
-    public ResponseEntity<CardRequestDTO> updateRequest(
+    @Operation(summary = "Update request", description = "Update an existing card request (only pending requests) with masked card number in response")
+    public ResponseEntity<CardRequestResponseDTO> updateRequest(
             @Parameter(description = "Request ID") @PathVariable Integer requestId,
             @Parameter(description = "Request update details") @Valid @RequestBody CreateCardRequestDTO updateRequestDTO) {
         log.info("PUT /api/v1/requests/{} - Update request", requestId);
-        CardRequestDTO updatedRequest = cardRequestService.updateRequest(requestId, updateRequestDTO);
+        CardRequestResponseDTO updatedRequest = cardRequestService.updateRequestMasked(requestId, updateRequestDTO);
         return ResponseEntity.ok(updatedRequest);
     }
 
     @PostMapping("/{requestId}/process")
-    @Operation(summary = "Approve/Reject request", description = "Approve or reject a card request")
-    public ResponseEntity<CardRequestDTO> processRequest(
+    @Operation(summary = "Approve/Reject request", description = "Approve or reject a card request with masked card number in response")
+    public ResponseEntity<CardRequestResponseDTO> processRequest(
             @Parameter(description = "Request ID") @PathVariable Integer requestId,
             @Parameter(description = "Approval/Rejection details") @Valid @RequestBody ApproveRequestDTO approveRequestDTO) {
         log.info("POST /api/v1/requests/{}/process - Process request", requestId);
-        CardRequestDTO updatedRequest = cardRequestService.approveOrRejectRequest(requestId, approveRequestDTO);
+        CardRequestResponseDTO updatedRequest = cardRequestService.approveOrRejectRequestMasked(requestId, approveRequestDTO);
         return ResponseEntity.ok(updatedRequest);
     }
 
@@ -150,5 +151,65 @@ public class CardRequestController {
         log.info("GET /api/v1/requests/count?status={} - Get request count by status", status);
         Long count = cardRequestService.getRequestCountByStatus(status);
         return ResponseEntity.ok(count);
+    }
+
+    // ==================== Pagination Endpoints ====================
+
+    @GetMapping("/paginated")
+    @Operation(summary = "Get all requests with pagination", 
+               description = "Retrieve a paginated list of all card requests with masked card numbers")
+    public ResponseEntity<PaginatedResponse<CardRequestResponseDTO>> getAllRequestsPaginated(
+            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+        log.info("GET /api/v1/requests/paginated?page={}&size={} - Get all requests paginated", page, size);
+        PaginatedResponse<CardRequestResponseDTO> response = cardRequestService.getAllRequestsPaginatedMasked(page, size);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/card/{cardNumber}/paginated")
+    @Operation(summary = "Get requests by card number with pagination", 
+               description = "Retrieve paginated requests for a specific card with masked card numbers")
+    public ResponseEntity<PaginatedResponse<CardRequestResponseDTO>> getRequestsByCardNumberPaginated(
+            @Parameter(description = "Card number") @PathVariable String cardNumber,
+            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+        log.info("GET /api/v1/requests/card/{}/paginated?page={}&size={} - Get requests by card paginated", cardNumber, page, size);
+        PaginatedResponse<CardRequestResponseDTO> response = cardRequestService.getRequestsByCardNumberPaginatedMasked(cardNumber, page, size);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/status/{status}/paginated")
+    @Operation(summary = "Get requests by status with pagination", 
+               description = "Retrieve paginated requests with a specific status (PEND, APPR, RJCT) with masked card numbers")
+    public ResponseEntity<PaginatedResponse<CardRequestResponseDTO>> getRequestsByStatusPaginated(
+            @Parameter(description = "Request status code") @PathVariable String status,
+            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+        log.info("GET /api/v1/requests/status/{}/paginated?page={}&size={} - Get requests by status paginated", status, page, size);
+        PaginatedResponse<CardRequestResponseDTO> response = cardRequestService.getRequestsByStatusPaginatedMasked(status, page, size);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/type/{type}/paginated")
+    @Operation(summary = "Get requests by type with pagination", 
+               description = "Retrieve paginated requests of a specific type (ACTI, CDCL) with masked card numbers")
+    public ResponseEntity<PaginatedResponse<CardRequestResponseDTO>> getRequestsByTypePaginated(
+            @Parameter(description = "Request type code") @PathVariable String type,
+            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+        log.info("GET /api/v1/requests/type/{}/paginated?page={}&size={} - Get requests by type paginated", type, page, size);
+        PaginatedResponse<CardRequestResponseDTO> response = cardRequestService.getRequestsByTypePaginatedMasked(type, page, size);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/pending/paginated")
+    @Operation(summary = "Get pending requests with pagination", 
+               description = "Retrieve paginated list of pending requests with masked card numbers")
+    public ResponseEntity<PaginatedResponse<CardRequestResponseDTO>> getPendingRequestsPaginated(
+            @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+        log.info("GET /api/v1/requests/pending/paginated?page={}&size={} - Get pending requests paginated", page, size);
+        PaginatedResponse<CardRequestResponseDTO> response = cardRequestService.getPendingRequestsPaginatedMasked(page, size);
+        return ResponseEntity.ok(response);
     }
 }

@@ -7,6 +7,7 @@ import com.epic.cms.dto.CardRequestDTO;
 import com.epic.cms.dto.CardRequestResponseDTO;
 import com.epic.cms.dto.CreateCardRequestDTO;
 import com.epic.cms.dto.EncryptedPayload;
+import com.epic.cms.dto.PaginatedResponse;
 import com.epic.cms.exception.InvalidRequestException;
 import com.epic.cms.exception.ResourceNotFoundException;
 import com.epic.cms.model.Card;
@@ -191,6 +192,40 @@ public class CardRequestServiceImpl implements ICardRequestService {
         return convertToDTO(cardRequestRepository.findById(requestId).get());
     }
 
+    public CardRequestResponseDTO createRequestMasked(CreateCardRequestDTO createRequestDTO) {
+        log.info("Creating new card request (masked response)");
+
+        // Find the card by either maskedCardId (preferred) or cardNumber (legacy)
+        Card card;
+        if (createRequestDTO.getMaskedCardId() != null && !createRequestDTO.getMaskedCardId().isBlank()) {
+            log.info("Looking up card by maskedCardId: {}", createRequestDTO.getMaskedCardId());
+            card = cardRepository.findByMaskedCardId(createRequestDTO.getMaskedCardId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Card", "maskedCardId", createRequestDTO.getMaskedCardId()));
+        } else if (createRequestDTO.getCardNumber() != null && !createRequestDTO.getCardNumber().isBlank()) {
+            log.info("Looking up card by cardNumber (legacy)");
+            card = cardRepository.findByCardNumber(createRequestDTO.getCardNumber())
+                    .orElseThrow(() -> new ResourceNotFoundException("Card", "cardNumber", createRequestDTO.getCardNumber()));
+        } else {
+            throw new InvalidRequestException("Either maskedCardId or cardNumber must be provided");
+        }
+
+        // Validate request type exists
+        cardRequestTypeRepository.findByCode(createRequestDTO.getRequestReasonCode())
+                .orElseThrow(() -> new ResourceNotFoundException("CardRequestType", "code", createRequestDTO.getRequestReasonCode()));
+
+        CardRequest request = CardRequest.builder()
+                .cardNumber(card.getCardNumber()) // Use the actual card number from the database
+                .requestReasonCode(createRequestDTO.getRequestReasonCode())
+                .requestStatusCode(StatusCodes.REQUEST_PENDING)
+                .remark(createRequestDTO.getRemark())
+                .build();
+
+        Integer requestId = cardRequestRepository.insert(request);
+        log.info("Card request created successfully with id: {}", requestId);
+
+        return convertToResponseDTO(cardRequestRepository.findById(requestId).get());
+    }
+
     @Override
     public CardRequestDTO createCardRequestEncrypted(EncryptedPayload encryptedPayload) {
         log.info("Creating new card request with encrypted payload");
@@ -233,6 +268,54 @@ public class CardRequestServiceImpl implements ICardRequestService {
             log.info("Card request created successfully with id: {}", requestId);
 
             return convertToDTO(cardRequestRepository.findById(requestId).get());
+
+        } catch (Exception e) {
+            log.error("Error creating encrypted card request: {}", e.getMessage());
+            throw new InvalidRequestException("Failed to create encrypted card request: " + e.getMessage());
+        }
+    }
+
+    public CardRequestResponseDTO createCardRequestEncryptedMasked(EncryptedPayload encryptedPayload) {
+        log.info("Creating new card request with encrypted payload (masked response)");
+
+        try {
+            // Step 1: Decrypt the payload with transport key
+            String transportKey = encryptionConfig.getTransportKey();
+            String decryptedJson = EncryptionUtil.decrypt(
+                    encryptedPayload.getEncryptedData(),
+                    transportKey
+            );
+            log.debug("Decrypted card request payload");
+
+            // Step 2: Parse the decrypted JSON to CreateCardRequestDTO
+            CreateCardRequestDTO createRequestDTO = objectMapper.readValue(decryptedJson, CreateCardRequestDTO.class);
+            log.debug("Parsed CreateCardRequestDTO from decrypted payload");
+
+            // Step 3: Find the card by card number (need to decrypt stored card numbers)
+            Card card;
+            if (createRequestDTO.getCardNumber() != null && !createRequestDTO.getCardNumber().isBlank()) {
+                log.info("Looking up card by decrypting stored card numbers");
+                card = findCardByUnencryptedNumber(createRequestDTO.getCardNumber());
+            } else {
+                throw new InvalidRequestException("Card number must be provided in encrypted request");
+            }
+
+            // Step 4: Validate request type exists
+            cardRequestTypeRepository.findByCode(createRequestDTO.getRequestReasonCode())
+                    .orElseThrow(() -> new ResourceNotFoundException("CardRequestType", "code", createRequestDTO.getRequestReasonCode()));
+
+            // Step 5: Create the card request
+            CardRequest request = CardRequest.builder()
+                    .cardNumber(card.getCardNumber()) // Use the encrypted card number from the database
+                    .requestReasonCode(createRequestDTO.getRequestReasonCode())
+                    .requestStatusCode(StatusCodes.REQUEST_PENDING)
+                    .remark(createRequestDTO.getRemark())
+                    .build();
+
+            Integer requestId = cardRequestRepository.insert(request);
+            log.info("Card request created successfully with id: {}", requestId);
+
+            return convertToResponseDTO(cardRequestRepository.findById(requestId).get());
 
         } catch (Exception e) {
             log.error("Error creating encrypted card request: {}", e.getMessage());
@@ -305,6 +388,32 @@ public class CardRequestServiceImpl implements ICardRequestService {
         return convertToDTO(cardRequestRepository.findById(requestId).get());
     }
 
+    public CardRequestResponseDTO updateRequestMasked(Integer requestId, CreateCardRequestDTO updateRequestDTO) {
+        log.info("Updating card request: {} (masked response)", requestId);
+
+        CardRequest request = cardRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("CardRequest", "requestId", requestId));
+
+        // Only allow updates to pending requests
+        if (!StatusCodes.REQUEST_PENDING.equals(request.getRequestStatusCode())) {
+            throw new InvalidRequestException("Cannot update request with status: " + request.getRequestStatusCode());
+        }
+
+        // Validate request type exists
+        cardRequestTypeRepository.findByCode(updateRequestDTO.getRequestReasonCode())
+                .orElseThrow(() -> new ResourceNotFoundException("CardRequestType", "code", updateRequestDTO.getRequestReasonCode()));
+
+        // Note: We don't update the card number for existing requests
+        // Only the request reason and remark can be updated
+        request.setRequestReasonCode(updateRequestDTO.getRequestReasonCode());
+        request.setRemark(updateRequestDTO.getRemark());
+
+        cardRequestRepository.update(request);
+        log.info("Card request updated successfully: {}", requestId);
+
+        return convertToResponseDTO(cardRequestRepository.findById(requestId).get());
+    }
+
     @Override
     public CardRequestDTO approveOrRejectRequest(Integer requestId, ApproveRequestDTO approveRequestDTO) {
         log.info("Processing approval for request id: {}", requestId);
@@ -333,6 +442,35 @@ public class CardRequestServiceImpl implements ICardRequestService {
         }
 
         return convertToDTO(cardRequestRepository.findById(requestId).get());
+    }
+
+    public CardRequestResponseDTO approveOrRejectRequestMasked(Integer requestId, ApproveRequestDTO approveRequestDTO) {
+        log.info("Processing approval for request id: {} (masked response)", requestId);
+
+        CardRequest request = cardRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("CardRequest", "requestId", requestId));
+
+        // Only allow approval/rejection of pending requests
+        if (!StatusCodes.REQUEST_PENDING.equals(request.getRequestStatusCode())) {
+            throw new InvalidRequestException("Cannot approve/reject request with status: " + request.getRequestStatusCode());
+        }
+
+        // Validate new status exists
+        requestStatusRepository.findByStatusCode(approveRequestDTO.getRequestStatusCode())
+                .orElseThrow(() -> new ResourceNotFoundException("RequestStatus", "statusCode", approveRequestDTO.getRequestStatusCode()));
+
+        cardRequestRepository.updateStatus(requestId, approveRequestDTO.getRequestStatusCode(), approveRequestDTO.getRemark());
+        
+        if (StatusCodes.REQUEST_APPROVED.equals(approveRequestDTO.getRequestStatusCode())) {
+            log.info("Request approved: {}", requestId);
+            
+            // Update card status based on request type
+            updateCardStatusForApprovedRequest(request);
+        } else {
+            log.info("Request rejected: {}", requestId);
+        }
+
+        return convertToResponseDTO(cardRequestRepository.findById(requestId).get());
     }
     
     private void updateCardStatusForApprovedRequest(CardRequest request) {
@@ -416,21 +554,42 @@ public class CardRequestServiceImpl implements ICardRequestService {
         String encryptedCardNumber = request.getCardNumber();
         String decryptedCardNumber = encryptedCardNumber;
         
+        log.debug("Converting to ResponseDTO - encrypted card number: {}", encryptedCardNumber);
+        
         // Decrypt if the card number is in encrypted format
         if (encryptedCardNumber != null && encryptedCardNumber.contains(".")) {
             try {
                 String storageKey = encryptionConfig.getStorageKey();
                 decryptedCardNumber = EncryptionUtil.decrypt(encryptedCardNumber, storageKey);
+                log.debug("Successfully decrypted card number");
             } catch (Exception e) {
-                log.error("Error decrypting card number for response: {}", e.getMessage());
-                // If decryption fails, use the encrypted value for masking
+                log.error("Error decrypting card number for response: {}", e.getMessage(), e);
+                log.error("Encrypted value that failed to decrypt: {}", encryptedCardNumber);
+                // If decryption fails, try to mask the encrypted value directly (fallback)
+                decryptedCardNumber = encryptedCardNumber;
             }
+        } else {
+            log.debug("Card number is not encrypted (no dot separator found)");
+        }
+        
+        String maskedCardId;
+        String maskedCardNumber;
+        
+        try {
+            maskedCardId = CardMaskingUtil.generateMaskedCardId(decryptedCardNumber);
+            maskedCardNumber = CardMaskingUtil.mask(decryptedCardNumber);
+            log.debug("Generated maskedCardId: {}, maskedCardNumber: {}", maskedCardId, maskedCardNumber);
+        } catch (Exception e) {
+            log.error("Error generating masked values: {}", e.getMessage(), e);
+            // Fallback values
+            maskedCardId = "CRD-M-ERROR";
+            maskedCardNumber = "****ERROR****";
         }
         
         CardRequestResponseDTO dto = CardRequestResponseDTO.builder()
                 .requestId(request.getRequestId())
-                .maskedCardId(CardMaskingUtil.generateMaskedCardId(decryptedCardNumber))
-                .cardNumber(CardMaskingUtil.mask(decryptedCardNumber))
+                .maskedCardId(maskedCardId)
+                .cardNumber(maskedCardNumber)
                 .requestReasonCode(request.getRequestReasonCode())
                 .requestStatusCode(request.getRequestStatusCode())
                 .remark(request.getRemark())
@@ -448,5 +607,165 @@ public class CardRequestServiceImpl implements ICardRequestService {
         }
 
         return dto;
+    }
+
+    @Override
+    public PaginatedResponse<CardRequestDTO> getAllRequestsPaginated(int page, int size) {
+        log.info("Fetching all card requests with pagination - page: {}, size: {}", page, size);
+        
+        List<CardRequestDTO> content = cardRequestRepository.findAll(page, size)
+                .stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRequestRepository.count();
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    @Override
+    public PaginatedResponse<CardRequestDTO> getRequestsByCardNumberPaginated(String cardNumber, int page, int size) {
+        log.info("Fetching requests for card (paginated) - page: {}, size: {}", page, size);
+        
+        List<CardRequestDTO> content = cardRequestRepository.findByCardNumber(cardNumber, page, size)
+                .stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRequestRepository.countByCardNumber(cardNumber);
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    @Override
+    public PaginatedResponse<CardRequestDTO> getRequestsByStatusPaginated(String statusCode, int page, int size) {
+        log.info("Fetching requests with status {} (paginated) - page: {}, size: {}", statusCode, page, size);
+        
+        List<CardRequestDTO> content = cardRequestRepository.findByRequestStatusCode(statusCode, page, size)
+                .stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRequestRepository.countByStatus(statusCode);
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    @Override
+    public PaginatedResponse<CardRequestDTO> getRequestsByTypePaginated(String requestType, int page, int size) {
+        log.info("Fetching requests of type {} (paginated) - page: {}, size: {}", requestType, page, size);
+        
+        List<CardRequestDTO> content = cardRequestRepository.findByRequestReasonCode(requestType, page, size)
+                .stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRequestRepository.countByReasonCode(requestType);
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    @Override
+    public PaginatedResponse<CardRequestDTO> getPendingRequestsPaginated(int page, int size) {
+        log.info("Fetching pending requests (paginated) - page: {}, size: {}", page, size);
+        
+        List<CardRequestDTO> content = cardRequestRepository.findPendingRequests(page, size)
+                .stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRequestRepository.countPendingRequests();
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    // ==================== Masked Paginated Methods ====================
+
+    /**
+     * Get all card requests with pagination and masked card numbers
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return Paginated response containing card requests with masked card numbers
+     */
+    public PaginatedResponse<CardRequestResponseDTO> getAllRequestsPaginatedMasked(int page, int size) {
+        log.info("Fetching all card requests with pagination (masked) - page: {}, size: {}", page, size);
+        
+        List<CardRequestResponseDTO> content = cardRequestRepository.findAll(page, size)
+                .stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRequestRepository.count();
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    /**
+     * Get requests by card number with pagination and masked card numbers
+     * @param cardNumber The card number
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return Paginated response containing card requests with masked card numbers
+     */
+    public PaginatedResponse<CardRequestResponseDTO> getRequestsByCardNumberPaginatedMasked(String cardNumber, int page, int size) {
+        log.info("Fetching requests for card (paginated, masked) - page: {}, size: {}", page, size);
+        
+        List<CardRequestResponseDTO> content = cardRequestRepository.findByCardNumber(cardNumber, page, size)
+                .stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRequestRepository.countByCardNumber(cardNumber);
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    /**
+     * Get requests by status with pagination and masked card numbers
+     * @param statusCode The status code
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return Paginated response containing card requests with masked card numbers
+     */
+    public PaginatedResponse<CardRequestResponseDTO> getRequestsByStatusPaginatedMasked(String statusCode, int page, int size) {
+        log.info("Fetching requests with status {} (paginated, masked) - page: {}, size: {}", statusCode, page, size);
+        
+        List<CardRequestResponseDTO> content = cardRequestRepository.findByRequestStatusCode(statusCode, page, size)
+                .stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRequestRepository.countByStatus(statusCode);
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    /**
+     * Get requests by type with pagination and masked card numbers
+     * @param requestType The request type
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return Paginated response containing card requests with masked card numbers
+     */
+    public PaginatedResponse<CardRequestResponseDTO> getRequestsByTypePaginatedMasked(String requestType, int page, int size) {
+        log.info("Fetching requests of type {} (paginated, masked) - page: {}, size: {}", requestType, page, size);
+        
+        List<CardRequestResponseDTO> content = cardRequestRepository.findByRequestReasonCode(requestType, page, size)
+                .stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRequestRepository.countByReasonCode(requestType);
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    /**
+     * Get pending requests with pagination and masked card numbers
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return Paginated response containing pending card requests with masked card numbers
+     */
+    public PaginatedResponse<CardRequestResponseDTO> getPendingRequestsPaginatedMasked(int page, int size) {
+        log.info("Fetching pending requests (paginated, masked) - page: {}, size: {}", page, size);
+        
+        List<CardRequestResponseDTO> content = cardRequestRepository.findPendingRequests(page, size)
+                .stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRequestRepository.countPendingRequests();
+        return new PaginatedResponse<>(content, page, size, totalElements);
     }
 }

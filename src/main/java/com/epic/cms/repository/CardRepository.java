@@ -209,4 +209,53 @@ public class CardRepository implements ICardRepository {
         String sql = "SELECT COUNT(*) FROM Card WHERE CardStatus = ?";
         return jdbcTemplate.queryForObject(sql, Long.class, cardStatus);
     }
+
+    @Override
+    public List<Card> findAll(int page, int size) {
+        String sql = "SELECT * FROM Card ORDER BY LastUpdateTime DESC LIMIT ? OFFSET ?";
+        int offset = page * size;
+        return jdbcTemplate.query(sql, cardRowMapper, size, offset);
+    }
+
+    @Override
+    public List<Card> findByCardStatus(String cardStatus, int page, int size) {
+        String sql = "SELECT * FROM Card WHERE CardStatus = ? ORDER BY LastUpdateTime DESC LIMIT ? OFFSET ?";
+        int offset = page * size;
+        return jdbcTemplate.query(sql, cardRowMapper, cardStatus, size, offset);
+    }
+
+    @Override
+    public List<Card> findExpiredCards(int page, int size) {
+        String sql = "SELECT * FROM Card WHERE ExpiryDate < CURRENT_DATE ORDER BY ExpiryDate LIMIT ? OFFSET ?";
+        int offset = page * size;
+        return jdbcTemplate.query(sql, cardRowMapper, size, offset);
+    }
+
+    @Override
+    public List<Card> findExpiringBetween(LocalDate startDate, LocalDate endDate, int page, int size) {
+        String sql = "SELECT * FROM Card WHERE ExpiryDate BETWEEN ? AND ? ORDER BY ExpiryDate LIMIT ? OFFSET ?";
+        int offset = page * size;
+        return jdbcTemplate.query(sql, cardRowMapper, startDate, endDate, size, offset);
+    }
+
+    @Override
+    public long count() {
+        String sql = "SELECT COUNT(*) FROM Card";
+        Long count = jdbcTemplate.queryForObject(sql, Long.class);
+        return count != null ? count : 0L;
+    }
+
+    @Override
+    public long countExpiredCards() {
+        String sql = "SELECT COUNT(*) FROM Card WHERE ExpiryDate < CURRENT_DATE";
+        Long count = jdbcTemplate.queryForObject(sql, Long.class);
+        return count != null ? count : 0L;
+    }
+
+    @Override
+    public long countExpiringBetween(LocalDate startDate, LocalDate endDate) {
+        String sql = "SELECT COUNT(*) FROM Card WHERE ExpiryDate BETWEEN ? AND ?";
+        Long count = jdbcTemplate.queryForObject(sql, Long.class, startDate, endDate);
+        return count != null ? count : 0L;
+    }
 }

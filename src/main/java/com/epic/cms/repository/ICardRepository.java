@@ -97,4 +97,59 @@ public interface ICardRepository {
      * @return Number of cards with the specified status
      */
     Long countByStatus(String cardStatus);
+    
+    /**
+     * Retrieve cards with pagination
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return List of cards for the specified page
+     */
+    List<Card> findAll(int page, int size);
+    
+    /**
+     * Find cards by status with pagination
+     * @param cardStatus The status to filter by
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return List of cards with the specified status for the page
+     */
+    List<Card> findByCardStatus(String cardStatus, int page, int size);
+    
+    /**
+     * Find expired cards with pagination
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return List of expired cards for the page
+     */
+    List<Card> findExpiredCards(int page, int size);
+    
+    /**
+     * Find cards expiring between dates with pagination
+     * @param startDate Start date of the range
+     * @param endDate End date of the range
+     * @param page Page number (0-based)
+     * @param size Number of items per page
+     * @return List of cards expiring in the date range for the page
+     */
+    List<Card> findExpiringBetween(LocalDate startDate, LocalDate endDate, int page, int size);
+    
+    /**
+     * Count all cards
+     * @return Total number of cards
+     */
+    long count();
+    
+    /**
+     * Count expired cards
+     * @return Total number of expired cards
+     */
+    long countExpiredCards();
+    
+    /**
+     * Count cards expiring between dates
+     * @param startDate Start date of the range
+     * @param endDate End date of the range
+     * @return Total number of cards expiring in the date range
+     */
+    long countExpiringBetween(LocalDate startDate, LocalDate endDate);
 }

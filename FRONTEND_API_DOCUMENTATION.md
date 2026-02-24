@@ -6,10 +6,11 @@
 3. [Authentication](#authentication)
 4. [Card Management API](#card-management-api)
 5. [Card Request Management API](#card-request-management-api)
-6. [Data Models](#data-models)
-7. [Error Handling](#error-handling)
-8. [Integration Examples](#integration-examples)
-9. [Best Practices](#best-practices)
+6. [Pagination](#pagination)
+7. [Data Models](#data-models)
+8. [Error Handling](#error-handling)
+9. [Integration Examples](#integration-examples)
+10. [Best Practices](#best-practices)
 
 ---
 
@@ -998,6 +999,470 @@ Delete a request (only pending or rejected requests can be deleted).
 
 ---
 
+## Pagination
+
+The API supports pagination for all list endpoints to improve performance with large datasets. Pagination endpoints use query parameters to control page size and page number.
+
+### Pagination Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | integer | 0 | Page number (0-based) |
+| `size` | integer | 10 | Number of items per page |
+
+### Pagination Response Format
+
+All paginated endpoints return a consistent response structure:
+
+```json
+{
+  "content": [
+    {
+      // Array of items (cards or requests)
+    }
+  ],
+  "page": 0,
+  "size": 10,
+  "totalElements": 45,
+  "totalPages": 5,
+  "first": true,
+  "last": false
+}
+```
+
+**Response Fields:**
+- `content`: Array of items for the current page
+- `page`: Current page number (0-based)
+- `size`: Number of items per page
+- `totalElements`: Total number of items across all pages
+- `totalPages`: Total number of pages
+- `first`: `true` if this is the first page
+- `last`: `true` if this is the last page
+
+---
+
+### Card Pagination Endpoints
+
+#### 1. Get All Cards (Paginated)
+
+**Endpoint:** `GET /api/v1/cards/paginated`
+
+**Query Parameters:**
+- `page` (optional, default: 0) - Page number
+- `size` (optional, default: 10) - Page size
+
+**Example Request:**
+```
+GET /api/v1/cards/paginated?page=0&size=20
+```
+
+**Response:** `200 OK`
+```json
+{
+  "content": [
+    {
+      "maskedCardId": "CRD-M-943E49CC",
+      "cardNumber": "589925******0233",
+      "expiryDate": "2027-12-31",
+      "cardStatus": "CACT",
+      "cardStatusDescription": "Currently Active",
+      "creditLimit": 50000.00,
+      "cashLimit": 10000.00,
+      "availableCreditLimit": 45000.00,
+      "availableCashLimit": 8000.00,
+      "lastUpdateTime": "2026-02-19T10:30:00"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 45,
+  "totalPages": 3,
+  "first": true,
+  "last": false
+}
+```
+
+**JavaScript Example:**
+```javascript
+const fetchCardsPaginated = async (page = 0, size = 10) => {
+  try {
+    const response = await fetch(
+      `http://localhost:8080/api/v1/cards/paginated?page=${page}&size=${size}`,
+      {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+    
+    if (!response.ok) throw new Error('Failed to fetch cards');
+    return await response.json();
+  } catch (error) {
+    console.error('Error:', error);
+    throw error;
+  }
+};
+
+// Usage
+const result = await fetchCardsPaginated(0, 20);
+console.log(`Showing ${result.content.length} of ${result.totalElements} cards`);
+console.log(`Page ${result.page + 1} of ${result.totalPages}`);
+```
+
+---
+
+#### 2. Get Cards by Status (Paginated)
+
+**Endpoint:** `GET /api/v1/cards/status/{status}/paginated`
+
+**Path Parameters:**
+- `status` (required) - Card status code (IACT, CACT, DACT)
+
+**Query Parameters:**
+- `page` (optional, default: 0) - Page number
+- `size` (optional, default: 10) - Page size
+
+**Example Request:**
+```
+GET /api/v1/cards/status/CACT/paginated?page=0&size=15
+```
+
+---
+
+#### 3. Get Expired Cards (Paginated)
+
+**Endpoint:** `GET /api/v1/cards/expired/paginated`
+
+**Query Parameters:**
+- `page` (optional, default: 0) - Page number
+- `size` (optional, default: 10) - Page size
+
+**Example Request:**
+```
+GET /api/v1/cards/expired/paginated?page=1&size=10
+```
+
+---
+
+#### 4. Get Cards Expiring Soon (Paginated)
+
+**Endpoint:** `GET /api/v1/cards/expiring/paginated`
+
+**Query Parameters:**
+- `days` (optional, default: 30) - Number of days to check
+- `page` (optional, default: 0) - Page number
+- `size` (optional, default: 10) - Page size
+
+**Example Request:**
+```
+GET /api/v1/cards/expiring/paginated?days=60&page=0&size=10
+```
+
+---
+
+### Card Request Pagination Endpoints
+
+#### 1. Get All Requests (Paginated)
+
+**Endpoint:** `GET /api/v1/requests/paginated`
+
+**Query Parameters:**
+- `page` (optional, default: 0) - Page number
+- `size` (optional, default: 10) - Page size
+
+**Example Request:**
+```
+GET /api/v1/requests/paginated?page=0&size=25
+```
+
+**Response:** `200 OK`
+```json
+{
+  "content": [
+    {
+      "requestId": 10,
+      "cardNumber": "1234567890123456",
+      "requestReasonCode": "ACTI",
+      "requestReasonDescription": "Activation",
+      "requestStatusCode": "PEND",
+      "requestStatusDescription": "Pending",
+      "remark": "Customer requested activation",
+      "createdTime": "2026-02-19T10:30:00"
+    }
+  ],
+  "page": 0,
+  "size": 25,
+  "totalElements": 100,
+  "totalPages": 4,
+  "first": true,
+  "last": false
+}
+```
+
+---
+
+#### 2. Get Requests by Card Number (Paginated)
+
+**Endpoint:** `GET /api/v1/requests/card/{cardNumber}/paginated`
+
+**Path Parameters:**
+- `cardNumber` (required) - Card number
+
+**Query Parameters:**
+- `page` (optional, default: 0) - Page number
+- `size` (optional, default: 10) - Page size
+
+**Example Request:**
+```
+GET /api/v1/requests/card/1234567890123456/paginated?page=0&size=10
+```
+
+---
+
+#### 3. Get Requests by Status (Paginated)
+
+**Endpoint:** `GET /api/v1/requests/status/{status}/paginated`
+
+**Path Parameters:**
+- `status` (required) - Request status code (PEND, APPR, RJCT)
+
+**Query Parameters:**
+- `page` (optional, default: 0) - Page number
+- `size` (optional, default: 10) - Page size
+
+**Example Request:**
+```
+GET /api/v1/requests/status/PEND/paginated?page=0&size=50
+```
+
+---
+
+#### 4. Get Requests by Type (Paginated)
+
+**Endpoint:** `GET /api/v1/requests/type/{type}/paginated`
+
+**Path Parameters:**
+- `type` (required) - Request type code (ACTI, CDCL)
+
+**Query Parameters:**
+- `page` (optional, default: 0) - Page number
+- `size` (optional, default: 10) - Page size
+
+**Example Request:**
+```
+GET /api/v1/requests/type/ACTI/paginated?page=1&size=20
+```
+
+---
+
+#### 5. Get Pending Requests (Paginated)
+
+**Endpoint:** `GET /api/v1/requests/pending/paginated`
+
+**Query Parameters:**
+- `page` (optional, default: 0) - Page number
+- `size` (optional, default: 10) - Page size
+
+**Example Request:**
+```
+GET /api/v1/requests/pending/paginated?page=0&size=10
+```
+
+---
+
+### React Pagination Example
+
+Here's a complete example of implementing pagination in React:
+
+```javascript
+import React, { useState, useEffect } from 'react';
+
+const CardListPaginated = () => {
+  const [paginatedData, setPaginatedData] = useState(null);
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(10);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchCards();
+  }, [page, size]);
+
+  const fetchCards = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `http://localhost:8080/api/v1/cards/paginated?page=${page}&size=${size}`
+      );
+      const data = await response.json();
+      setPaginatedData(data);
+    } catch (error) {
+      console.error('Error fetching cards:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
+
+  const handleSizeChange = (newSize) => {
+    setSize(newSize);
+    setPage(0); // Reset to first page when size changes
+  };
+
+  if (loading) return <div>Loading...</div>;
+  if (!paginatedData) return null;
+
+  return (
+    <div>
+      <h2>Cards</h2>
+      
+      {/* Page size selector */}
+      <select value={size} onChange={(e) => handleSizeChange(Number(e.target.value))}>
+        <option value={10}>10 per page</option>
+        <option value={25}>25 per page</option>
+        <option value={50}>50 per page</option>
+        <option value={100}>100 per page</option>
+      </select>
+
+      {/* Cards list */}
+      <div>
+        {paginatedData.content.map((card) => (
+          <div key={card.maskedCardId}>
+            <p>Card: {card.cardNumber}</p>
+            <p>Status: {card.cardStatusDescription}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Pagination controls */}
+      <div>
+        <p>
+          Showing {paginatedData.content.length} of {paginatedData.totalElements} cards
+          (Page {paginatedData.page + 1} of {paginatedData.totalPages})
+        </p>
+        
+        <button 
+          onClick={() => handlePageChange(page - 1)} 
+          disabled={paginatedData.first}
+        >
+          Previous
+        </button>
+        
+        <span> Page {page + 1} </span>
+        
+        <button 
+          onClick={() => handlePageChange(page + 1)} 
+          disabled={paginatedData.last}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default CardListPaginated;
+```
+
+---
+
+### Vue.js Pagination Example
+
+```javascript
+<template>
+  <div>
+    <h2>Cards</h2>
+    
+    <!-- Page size selector -->
+    <select v-model.number="size" @change="fetchCards">
+      <option :value="10">10 per page</option>
+      <option :value="25">25 per page</option>
+      <option :value="50">50 per page</option>
+      <option :value="100">100 per page</option>
+    </select>
+
+    <!-- Cards list -->
+    <div v-if="loading">Loading...</div>
+    <div v-else-if="paginatedData">
+      <div v-for="card in paginatedData.content" :key="card.maskedCardId">
+        <p>Card: {{ card.cardNumber }}</p>
+        <p>Status: {{ card.cardStatusDescription }}</p>
+      </div>
+
+      <!-- Pagination controls -->
+      <div>
+        <p>
+          Showing {{ paginatedData.content.length }} of {{ paginatedData.totalElements }} cards
+          (Page {{ paginatedData.page + 1 }} of {{ paginatedData.totalPages }})
+        </p>
+        
+        <button 
+          @click="prevPage" 
+          :disabled="paginatedData.first"
+        >
+          Previous
+        </button>
+        
+        <span> Page {{ page + 1 }} </span>
+        
+        <button 
+          @click="nextPage" 
+          :disabled="paginatedData.last"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      paginatedData: null,
+      page: 0,
+      size: 10,
+      loading: false
+    };
+  },
+  mounted() {
+    this.fetchCards();
+  },
+  methods: {
+    async fetchCards() {
+      this.loading = true;
+      try {
+        const response = await fetch(
+          `http://localhost:8080/api/v1/cards/paginated?page=${this.page}&size=${this.size}`
+        );
+        this.paginatedData = await response.json();
+      } catch (error) {
+        console.error('Error fetching cards:', error);
+      } finally {
+        this.loading = false;
+      }
+    },
+    prevPage() {
+      if (!this.paginatedData.first) {
+        this.page--;
+        this.fetchCards();
+      }
+    },
+    nextPage() {
+      if (!this.paginatedData.last) {
+        this.page++;
+        this.fetchCards();
+      }
+    }
+  }
+};
+</script>
+```
+
+---
+
 ## Data Models
 
 ### Card Status Reference
@@ -1706,7 +2171,7 @@ const useCreateCard = () => {
 
 ### 5. Performance
 
-- **Implement pagination for large datasets**
+- **Use pagination for large datasets** - The API now supports pagination endpoints (see [Pagination](#pagination) section)
 - **Use debouncing for search/filter operations**
 - **Lazy load components when possible**
 - **Memoize expensive computations**

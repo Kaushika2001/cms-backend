@@ -5,6 +5,7 @@ import com.epic.cms.dto.CardDTO;
 import com.epic.cms.dto.CardResponseDTO;
 import com.epic.cms.dto.CreateCardDTO;
 import com.epic.cms.dto.MaskedCardIdDTO;
+import com.epic.cms.dto.PaginatedResponse;
 import com.epic.cms.exception.DuplicateResourceException;
 import com.epic.cms.exception.ResourceNotFoundException;
 import com.epic.cms.model.Card;
@@ -411,5 +412,64 @@ public class CardServiceImpl implements CardService {
                 .ifPresent(status -> dto.setCardStatusDescription(status.getDescription()));
 
         return dto;
+    }
+
+    @Override
+    public PaginatedResponse<CardResponseDTO> getAllCardsPaginated(int page, int size) {
+        log.info("Fetching all cards with pagination - page: {}, size: {}", page, size);
+        
+        List<CardResponseDTO> content = cardRepository.findAll(page, size)
+                .stream()
+                .peek(this::decryptCardNumber)
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRepository.count();
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    @Override
+    public PaginatedResponse<CardResponseDTO> getCardsByStatusPaginated(String cardStatus, int page, int size) {
+        log.info("Fetching cards with status {} (paginated) - page: {}, size: {}", cardStatus, page, size);
+        
+        List<CardResponseDTO> content = cardRepository.findByCardStatus(cardStatus, page, size)
+                .stream()
+                .peek(this::decryptCardNumber)
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRepository.countByStatus(cardStatus);
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    @Override
+    public PaginatedResponse<CardResponseDTO> getExpiredCardsPaginated(int page, int size) {
+        log.info("Fetching expired cards (paginated) - page: {}, size: {}", page, size);
+        
+        List<CardResponseDTO> content = cardRepository.findExpiredCards(page, size)
+                .stream()
+                .peek(this::decryptCardNumber)
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRepository.countExpiredCards();
+        return new PaginatedResponse<>(content, page, size, totalElements);
+    }
+
+    @Override
+    public PaginatedResponse<CardResponseDTO> getExpiringCardsPaginated(int days, int page, int size) {
+        log.info("Fetching cards expiring within {} days (paginated) - page: {}, size: {}", days, page, size);
+        
+        LocalDate startDate = LocalDate.now();
+        LocalDate endDate = startDate.plusDays(days);
+        
+        List<CardResponseDTO> content = cardRepository.findExpiringBetween(startDate, endDate, page, size)
+                .stream()
+                .peek(this::decryptCardNumber)
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+        
+        long totalElements = cardRepository.countExpiringBetween(startDate, endDate);
+        return new PaginatedResponse<>(content, page, size, totalElements);
     }
 }
