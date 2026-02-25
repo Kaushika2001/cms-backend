@@ -7,6 +7,7 @@ import com.epic.cms.dto.CreateCardDTO;
 import com.epic.cms.dto.EncryptedPayload;
 import com.epic.cms.dto.MaskedCardIdDTO;
 import com.epic.cms.dto.PaginatedResponse;
+import com.epic.cms.dto.UpdateCardDTO;
 import com.epic.cms.dto.UpdateCardStatusDTO;
 import com.epic.cms.service.CardService;
 import com.epic.cms.service.impl.CardServiceImpl;
@@ -183,12 +184,14 @@ public class CardController {
     }
 
     @PutMapping("/{cardNumber}")
-    @Operation(summary = "Update card", description = "Update an existing card")
-    public ResponseEntity<CardDTO> updateCard(
-            @Parameter(description = "Card number") @PathVariable String cardNumber,
-            @Parameter(description = "Card update details") @Valid @RequestBody CreateCardDTO updateCardDTO) {
+    @Operation(summary = "Update card", 
+               description = "Update an existing card. Card number can be masked (e.g., 558899******3333) or encrypted. " +
+                             "The card number in the path is used to identify the card, not the body.")
+    public ResponseEntity<CardResponseDTO> updateCard(
+            @Parameter(description = "Card number (masked like 558899******3333 or encrypted)") @PathVariable String cardNumber,
+            @Parameter(description = "Card update details") @Valid @RequestBody UpdateCardDTO updateCardDTO) {
         log.info("PUT /api/v1/cards/{} - Update card", cardNumber);
-        CardDTO updatedCard = cardService.updateCard(cardNumber, updateCardDTO);
+        CardResponseDTO updatedCard = cardService.updateCardMasked(cardNumber, updateCardDTO);
         return ResponseEntity.ok(updatedCard);
     }
 

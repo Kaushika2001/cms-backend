@@ -125,15 +125,31 @@ public class CardRepository implements ICardRepository {
         
         log.info("Total cards in database: {}", allCards.size());
         
+        // Get storage key for decryption
+        String storageKey = encryptionConfig.getStorageKey();
+        
         // Filter cards that match the masked pattern
+        // Need to decrypt each card number first before matching
         Optional<Card> result = allCards.stream()
                 .filter(card -> {
-                    boolean matches = CardMaskingUtil.matchesMaskedPattern(card.getCardNumber(), maskedCardNumber);
-                    if (matches) {
-                        log.info("Found matching card: {} matches pattern {}", 
-                                CardMaskingUtil.mask(card.getCardNumber()), maskedCardNumber);
+                    try {
+                        // Decrypt the card number from database
+                        String encryptedCardNumber = card.getCardNumber();
+                        String decryptedCardNumber = EncryptionUtil.decrypt(encryptedCardNumber, storageKey);
+                        
+                        // Check if decrypted number matches the masked pattern
+                        boolean matches = CardMaskingUtil.matchesMaskedPattern(decryptedCardNumber, maskedCardNumber);
+                        
+                        if (matches) {
+                            log.info("Found matching card: {} (decrypted) matches pattern {}", 
+                                    CardMaskingUtil.mask(decryptedCardNumber), maskedCardNumber);
+                        }
+                        
+                        return matches;
+                    } catch (Exception e) {
+                        log.error("Error decrypting card number during masked search", e);
+                        return false;
                     }
-                    return matches;
                 })
                 .findFirst();
         

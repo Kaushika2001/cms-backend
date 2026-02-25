@@ -6,6 +6,7 @@ import com.epic.cms.dto.CardResponseDTO;
 import com.epic.cms.dto.CreateCardDTO;
 import com.epic.cms.dto.MaskedCardIdDTO;
 import com.epic.cms.dto.PaginatedResponse;
+import com.epic.cms.dto.UpdateCardDTO;
 import com.epic.cms.exception.DuplicateResourceException;
 import com.epic.cms.exception.ResourceNotFoundException;
 import com.epic.cms.model.Card;
@@ -206,6 +207,61 @@ public class CardServiceImpl implements CardService {
         log.info("Card updated successfully");
 
         return convertToDTO(cardRepository.findByCardNumber(cardNumber).get());
+    }
+
+    /**
+     * Update card using masked or encrypted card number.
+     * Accepts UpdateCardDTO which doesn't require cardNumber in the body.
+     */
+    public CardResponseDTO updateCardMasked(String maskedOrEncryptedCardNumber, UpdateCardDTO updateCardDTO) {
+        log.info("Updating card with masked/encrypted card number: {}", maskedOrEncryptedCardNumber);
+        
+        Card existingCard;
+        
+        // Step 1: Find the card using masked or encrypted card number
+        if (CardMaskingUtil.isMasked(maskedOrEncryptedCardNumber)) {
+            LoggerUtil.info(CardServiceImpl.class, "Card number is masked, performing pattern lookup");
+            existingCard = cardRepository.findByMaskedCardNumber(maskedOrEncryptedCardNumber)
+                    .orElseThrow(() -> new ResourceNotFoundException("Card", "maskedCardNumber", maskedOrEncryptedCardNumber));
+        } else {
+            LoggerUtil.info(CardServiceImpl.class, "Card number is unmasked, performing direct lookup");
+            // Card number in DB is encrypted, so we need to search by the encrypted value
+            // Try to find by searching all cards and matching decrypted values
+            existingCard = findCardByUnencryptedNumber(maskedOrEncryptedCardNumber);
+        }
+        
+        // Step 2: Validate new card status exists
+        cardStatusRepository.findByStatusCode(updateCardDTO.getCardStatus())
+                .orElseThrow(() -> new ResourceNotFoundException("CardStatus", "statusCode", updateCardDTO.getCardStatus()));
+        
+        // Step 3: Convert expiry date from MM-YYYY to LocalDate
+        LocalDate expiryLocalDate = ExpiryDateUtil.convertToLocalDate(updateCardDTO.getExpiryDate());
+        
+        // Step 4: Validate expiry date is in the future
+        if (!expiryLocalDate.isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("Expiry date must be in the future");
+        }
+        
+        // Step 5: Build updated card with encrypted card number (from existing card)
+        Card card = Card.builder()
+                .cardNumber(existingCard.getCardNumber()) // Use the encrypted card number from DB
+                .expiryDate(expiryLocalDate)
+                .cardStatus(updateCardDTO.getCardStatus())
+                .creditLimit(updateCardDTO.getCreditLimit())
+                .cashLimit(updateCardDTO.getCashLimit())
+                .availableCreditLimit(updateCardDTO.getAvailableCreditLimit())
+                .availableCashLimit(updateCardDTO.getAvailableCashLimit())
+                .build();
+        
+        // Step 6: Update the card in database
+        cardRepository.update(card);
+        log.info("Card updated successfully");
+        
+        // Step 7: Return masked response
+        Card updatedCard = cardRepository.findByCardNumber(existingCard.getCardNumber()).get();
+        // Decrypt card number before conversion
+        decryptCardNumber(updatedCard);
+        return convertToResponseDTO(updatedCard);
     }
 
     public CardDTO updateCardStatus(String cardNumber, String status) {
