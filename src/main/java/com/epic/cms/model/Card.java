@@ -20,4 +20,5 @@ public class Card {
     private BigDecimal availableCreditLimit;
     private BigDecimal availableCashLimit;
     private LocalDateTime lastUpdateTime;
+    private String lastUpdatedUser;
 }

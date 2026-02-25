@@ -38,6 +38,7 @@ public class CardRepository implements ICardRepository {
                     .availableCreditLimit(rs.getBigDecimal("AvailableCreditLimit"))
                     .availableCashLimit(rs.getBigDecimal("AvailableCashLimit"))
                     .lastUpdateTime(rs.getTimestamp("LastUpdateTime").toLocalDateTime())
+                    .lastUpdatedUser(rs.getString("LastUpdatedUser"))
                     .build();
         }
     }
@@ -164,8 +165,8 @@ public class CardRepository implements ICardRepository {
     @Override
     public int insert(Card card) {
         String sql = "INSERT INTO Card (CardNumber, ExpiryDate, CardStatus, CreditLimit, CashLimit, " +
-                     "AvailableCreditLimit, AvailableCashLimit, LastUpdateTime) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)";
+                     "AvailableCreditLimit, AvailableCashLimit, LastUpdateTime, LastUpdatedUser) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)";
         return jdbcTemplate.update(sql,
                 card.getCardNumber(),
                 card.getExpiryDate(),
@@ -173,14 +174,15 @@ public class CardRepository implements ICardRepository {
                 card.getCreditLimit(),
                 card.getCashLimit(),
                 card.getAvailableCreditLimit(),
-                card.getAvailableCashLimit());
+                card.getAvailableCashLimit(),
+                card.getLastUpdatedUser());
     }
 
     @Override
     public int update(Card card) {
         String sql = "UPDATE Card SET ExpiryDate = ?, CardStatus = ?, CreditLimit = ?, CashLimit = ?, " +
-                     "AvailableCreditLimit = ?, AvailableCashLimit = ?, LastUpdateTime = CURRENT_TIMESTAMP " +
-                     "WHERE CardNumber = ?";
+                     "AvailableCreditLimit = ?, AvailableCashLimit = ?, LastUpdateTime = CURRENT_TIMESTAMP, " +
+                     "LastUpdatedUser = ? WHERE CardNumber = ?";
         return jdbcTemplate.update(sql,
                 card.getExpiryDate(),
                 card.getCardStatus(),
@@ -188,13 +190,14 @@ public class CardRepository implements ICardRepository {
                 card.getCashLimit(),
                 card.getAvailableCreditLimit(),
                 card.getAvailableCashLimit(),
+                card.getLastUpdatedUser(),
                 card.getCardNumber());
     }
 
     @Override
     public int updateCardStatus(String cardNumber, String newStatus) {
-        String sql = "UPDATE Card SET CardStatus = ?, LastUpdateTime = CURRENT_TIMESTAMP WHERE CardNumber = ?";
-        return jdbcTemplate.update(sql, newStatus, cardNumber);
+        String sql = "UPDATE Card SET CardStatus = ?, LastUpdateTime = CURRENT_TIMESTAMP, LastUpdatedUser = ? WHERE CardNumber = ?";
+        return jdbcTemplate.update(sql, newStatus, null, cardNumber);
     }
 
     @Override
