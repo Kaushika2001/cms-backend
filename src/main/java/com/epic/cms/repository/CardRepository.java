@@ -1,6 +1,7 @@
 package com.epic.cms.repository;
 
 import com.epic.cms.config.EncryptionConfig;
+import com.epic.cms.dto.CardReportDTO;
 import com.epic.cms.model.Card;
 import com.epic.cms.util.CardMaskingUtil;
 import com.epic.cms.util.EncryptionUtil;
@@ -276,5 +277,43 @@ public class CardRepository implements ICardRepository {
         String sql = "SELECT COUNT(*) FROM Card WHERE ExpiryDate BETWEEN ? AND ?";
         Long count = jdbcTemplate.queryForObject(sql, Long.class, startDate, endDate);
         return count != null ? count : 0L;
+    }
+    
+    @Override
+    public List<CardReportDTO> findAllForReport() {
+        String sql = "SELECT c.CardNumber, c.ExpiryDate, c.CreditLimit, c.CashLimit, " +
+                     "c.AvailableCreditLimit, c.AvailableCashLimit, c.LastUpdateTime, " +
+                     "c.LastUpdatedUser, cs.Description as CardStatusDescription " +
+                     "FROM Card c " +
+                     "LEFT JOIN CardStatus cs ON c.CardStatus = cs.StatusCode " +
+                     "ORDER BY c.LastUpdateTime DESC";
+        
+        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+            String encryptedCardNumber = rs.getString("CardNumber");
+            String decryptedCardNumber;
+            
+            try {
+                // Decrypt the card number
+                decryptedCardNumber = EncryptionUtil.decrypt(encryptedCardNumber, encryptionConfig.getStorageKey());
+            } catch (Exception e) {
+                log.error("Error decrypting card number for report", e);
+                decryptedCardNumber = encryptedCardNumber; // fallback to encrypted value
+            }
+            
+            // Mask the decrypted card number
+            String maskedCardNumber = CardMaskingUtil.mask(decryptedCardNumber);
+            
+            return CardReportDTO.builder()
+                    .maskedCardNumber(maskedCardNumber)
+                    .expiryDate(rs.getDate("ExpiryDate").toLocalDate())
+                    .creditLimit(rs.getBigDecimal("CreditLimit"))
+                    .cardStatusDescription(rs.getString("CardStatusDescription"))
+                    .cashLimit(rs.getBigDecimal("CashLimit"))
+                    .availableCreditLimit(rs.getBigDecimal("AvailableCreditLimit"))
+                    .availableCashLimit(rs.getBigDecimal("AvailableCashLimit"))
+                    .lastUpdateTime(rs.getTimestamp("LastUpdateTime").toLocalDateTime())
+                    .lastUpdateUser(rs.getString("LastUpdatedUser"))
+                    .build();
+        });
     }
 }

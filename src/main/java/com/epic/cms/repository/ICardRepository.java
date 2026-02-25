@@ -1,5 +1,6 @@
 package com.epic.cms.repository;
 
+import com.epic.cms.dto.CardReportDTO;
 import com.epic.cms.model.Card;
 
 import java.time.LocalDate;
@@ -152,4 +153,10 @@ public interface ICardRepository {
      * @return Total number of cards expiring in the date range
      */
     long countExpiringBetween(LocalDate startDate, LocalDate endDate);
+    
+    /**
+     * Retrieve all cards with status description and audit information for reporting
+     * @return List of CardReportDTO objects with audit information
+     */
+    List<CardReportDTO> findAllForReport();
 }
